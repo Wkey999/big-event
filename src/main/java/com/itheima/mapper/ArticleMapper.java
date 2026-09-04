@@ -26,7 +26,13 @@ public interface ArticleMapper {
 
     List<Article> findByCondition(@Param("userId") Long userId,
                                   @Param("categoryId") Long categoryId,
-                                  @Param("state") Integer state);
+                                  @Param("state") Integer state,
+                                  @Param("offset") Integer offset,
+                                  @Param("pageSize") Integer pageSize);
+
+    Long countByCondition(@Param("userId") Long userId,
+                          @Param("categoryId") Long categoryId,
+                          @Param("state") Integer state);
 
     @Update("UPDATE article SET view_count = view_count + 1 WHERE id = #{id}")
     int incrementViewCount(Long id);

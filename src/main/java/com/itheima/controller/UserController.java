@@ -6,14 +6,13 @@ import com.itheima.pojo.UserLoginDTO;
 import com.itheima.pojo.UserRegisterDTO;
 import com.itheima.pojo.UserUpdateDTO;
 import com.itheima.service.UserService;
+import com.itheima.utils.OssUtils;
 import com.itheima.utils.ThreadLocalUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
@@ -28,10 +27,7 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
-
-    /** 文件上传保存目录，从 application.yml 读取 */
-    @Value("${file.upload-path}")
-    private String uploadPath;
+    private final OssUtils ossUtils;
 
     /**
      * 用户注册
@@ -103,12 +99,9 @@ public class UserController {
         // 用UUID重命名，防止文件名冲突和路径注入
         String ext = originalName.substring(originalName.lastIndexOf("."));
         String newName = UUID.randomUUID().toString().replace("-", "") + ext;
-        // 保存到本地磁盘
-        File dest = new File(uploadPath + newName);
-        dest.getParentFile().mkdirs();
-        file.transferTo(dest);
-        // 返回可通过浏览器访问的URL
-        return Result.success("/uploads/" + newName);
+        // 上传到阿里云 OSS，返回可直接访问的公网 URL
+        String url = ossUtils.upload(file.getInputStream(), "images/" + newName);
+        return Result.success(url);
     }
 
     /**

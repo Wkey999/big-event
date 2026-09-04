@@ -12,6 +12,18 @@
             AND state = #{state}
         </if>
         ORDER BY create_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countByCondition" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM article
+        WHERE deleted = 0 AND user_id = #{userId}
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+        <if test="state != null">
+            AND state = #{state}
+        </if>
     </select>
 
 </mapper>

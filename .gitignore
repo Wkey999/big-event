@@ -34,3 +34,9 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### 敏感配置（含阿里云AccessKey，禁止提交） ###
+src/main/resources/application-oss.yml
+
+### 敏感配置（含JWT密钥/数据库密码，禁止提交） ###
+src/main/resources/application-secret.yml

@@ -1,12 +1,13 @@
 package com.itheima.controller;
 
 import com.itheima.pojo.Article;
+import com.itheima.pojo.ArticleAddDTO;
+import com.itheima.pojo.PageBean;
 import com.itheima.pojo.Result;
 import com.itheima.service.ArticleService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/article")
@@ -15,9 +16,12 @@ public class ArticleController {
 
     private final ArticleService articleService;
 
+    /**
+     * 新增文章（带参数校验 + 自定义校验）
+     */
     @PostMapping("/add")
-    public Result<Void> add(@RequestBody Article article) {
-        articleService.add(article);
+    public Result<Void> add(@Valid @RequestBody ArticleAddDTO dto) {
+        articleService.add(dto);
         return Result.success();
     }
 
@@ -38,9 +42,15 @@ public class ArticleController {
         return Result.success();
     }
 
+    /**
+     * 条件分页查询当前用户的文章
+     * GET /article/list?pageNum=1&pageSize=5&categoryId=1&state=已发布
+     */
     @GetMapping("/list")
-    public Result<List<Article>> list(@RequestParam(required = false) Long categoryId,
-                                      @RequestParam(required = false) String state) {
-        return Result.success(articleService.list(categoryId, state));
+    public Result<PageBean<Article>> list(@RequestParam(defaultValue = "1") Integer pageNum,
+                                          @RequestParam(defaultValue = "5") Integer pageSize,
+                                          @RequestParam(required = false) Long categoryId,
+                                          @RequestParam(required = false) String state) {
+        return Result.success(articleService.list(pageNum, pageSize, categoryId, state));
     }
 }

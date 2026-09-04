@@ -2,6 +2,8 @@ package com.itheima.service.impl;
 
 import com.itheima.mapper.ArticleMapper;
 import com.itheima.pojo.Article;
+import com.itheima.pojo.ArticleAddDTO;
+import com.itheima.pojo.PageBean;
 import com.itheima.service.ArticleService;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +18,14 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleMapper articleMapper;
 
     @Override
-    public void add(Article article) {
+    public void add(ArticleAddDTO dto) {
+        Article article = new Article();
+        article.setTitle(dto.getTitle());
+        article.setContent(dto.getContent());
+        article.setCoverImg(dto.getCoverImg());
+        article.setSummary(dto.getSummary());
+        article.setCategoryId(dto.getCategoryId());
+        article.setState(dto.getState());
         article.setUserId(ThreadLocalUtils.getUserId());
         articleMapper.insert(article);
     }
@@ -41,15 +50,31 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.deleteById(id, ThreadLocalUtils.getUserId());
     }
 
+    /**
+     * 条件分页查询
+     * 先查总条数，再查当前页数据，封装成 PageBean 返回
+     */
     @Override
-    public List<Article> list(Long categoryId, String state) {
+    public PageBean<Article> list(Integer pageNum, Integer pageSize, Long categoryId, String state) {
         Long userId = ThreadLocalUtils.getUserId();
-        Integer stateInt = null;
-        if ("草稿".equals(state)) {
-            stateInt = 0;
-        } else if ("已发布".equals(state)) {
-            stateInt = 1;
+        Integer stateInt = parseState(state);
+
+        Long total = articleMapper.countByCondition(userId, categoryId, stateInt);
+        List<Article> items = List.of();
+        if (total > 0) {
+            int offset = (pageNum - 1) * pageSize;
+            items = articleMapper.findByCondition(userId, categoryId, stateInt, offset, pageSize);
         }
-        return articleMapper.findByCondition(userId, categoryId, stateInt);
+        return new PageBean<>(total, items);
+    }
+
+    private Integer parseState(String state) {
+        if ("草稿".equals(state)) {
+            return 0;
+        }
+        if ("已发布".equals(state)) {
+            return 1;
+        }
+        return null;
     }
 }

@@ -1,12 +1,12 @@
 package com.itheima.service;
 
 import com.itheima.pojo.Article;
-
-import java.util.List;
+import com.itheima.pojo.ArticleAddDTO;
+import com.itheima.pojo.PageBean;
 
 public interface ArticleService {
 
-    void add(Article article);
+    void add(ArticleAddDTO dto);
 
     void update(Article article);
 
@@ -14,5 +14,5 @@ public interface ArticleService {
 
     void delete(Long id);
 
-    List<Article> list(Long categoryId, String state);
+    PageBean<Article> list(Integer pageNum, Integer pageSize, Long categoryId, String state);
 }

@@ -19,22 +19,45 @@ Content-Type: application/json
 
 ### 3. 获取当前用户信息（把下面的 YOUR_TOKEN 替换成登录返回的 token）
 GET http://localhost:8080/user/userInfo
-Authorization: YOUR_TOKEN
+Authorization: Bearer YOUR_TOKEN
 
-### 4. 修改用户信息
+### 4. 修改用户信息（带参数校验：昵称1-10位，邮箱格式）
 PUT http://localhost:8080/user/update
 Content-Type: application/json
-Authorization: YOUR_TOKEN
+Authorization: Bearer YOUR_TOKEN
 
 {
   "nickname": "管理员",
   "email": "admin@example.com"
 }
 
-### 5. 修改密码
+### 5. 上传头像（在 IDEA 中运行时选择一张本地图片）
+POST http://localhost:8080/user/upload
+Authorization: Bearer YOUR_TOKEN
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="avatar.png"
+Content-Type: image/png
+
+< ./avatar.png
+--WebAppBoundary--
+
+### 6. 更新头像URL（把第5步返回的 /uploads/xxx.png 填到 avatar 里）
+PUT http://localhost:8080/user/update
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN
+
+{
+  "nickname": "管理员",
+  "email": "admin@example.com",
+  "avatar": "/uploads/xxx.png"
+}
+
+### 7. 修改密码
 PUT http://localhost:8080/user/updatePwd
 Content-Type: application/json
-Authorization: YOUR_TOKEN
+Authorization: Bearer YOUR_TOKEN
 
 {
   "old_pwd": "123456",
