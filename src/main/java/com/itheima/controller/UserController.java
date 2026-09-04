@@ -4,13 +4,19 @@ import com.itheima.pojo.Result;
 import com.itheima.pojo.User;
 import com.itheima.pojo.UserLoginDTO;
 import com.itheima.pojo.UserRegisterDTO;
+import com.itheima.pojo.UserUpdateDTO;
 import com.itheima.service.UserService;
 import com.itheima.utils.ThreadLocalUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 用户模块控制器
@@ -22,6 +28,10 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+
+    /** 文件上传保存目录，从 application.yml 读取 */
+    @Value("${file.upload-path}")
+    private String uploadPath;
 
     /**
      * 用户注册
@@ -61,16 +71,44 @@ public class UserController {
     }
 
     /**
-     * 修改当前用户个人信息
+     * 修改当前用户个人信息（带参数校验）
      * PUT /user/update
-     * 请求体: {"nickname":"新昵称", "email":"新邮箱", "avatar":"头像URL"}
-     * 只能修改自己的信息，ID从token中获取
+     * 请求体: {"nickname":"新昵称", "email":"新邮箱"}
+     * nickname 和 email 会经过 @Valid 校验，不合法返回错误提示
      */
     @PutMapping("/update")
-    public Result<Void> updateUserInfo(@RequestBody User user) {
+    public Result<Void> updateUserInfo(@Valid @RequestBody UserUpdateDTO dto) {
+        User user = new User();
         user.setId(ThreadLocalUtils.getUserId());
+        user.setNickname(dto.getNickname());
+        user.setEmail(dto.getEmail());
+        user.setAvatar(dto.getAvatar());
         userService.updateUserInfo(user);
         return Result.success();
+    }
+
+    /**
+     * 上传头像图片
+     * POST /user/upload
+     * 请求: form-data，字段名 file，值为图片文件
+     * 返回: 图片的访问URL，前端拿到后再调 /user/update 更新头像字段
+     */
+    @PostMapping("/upload")
+    public Result<String> upload(@RequestParam MultipartFile file) throws IOException {
+        // 校验文件类型：只允许图片
+        String originalName = file.getOriginalFilename();
+        if (originalName == null || !originalName.matches("(?i).+\\.(jpg|jpeg|png|gif|webp)$")) {
+            throw new RuntimeException("只允许上传图片文件(jpg/png/gif/webp)");
+        }
+        // 用UUID重命名，防止文件名冲突和路径注入
+        String ext = originalName.substring(originalName.lastIndexOf("."));
+        String newName = UUID.randomUUID().toString().replace("-", "") + ext;
+        // 保存到本地磁盘
+        File dest = new File(uploadPath + newName);
+        dest.getParentFile().mkdirs();
+        file.transferTo(dest);
+        // 返回可通过浏览器访问的URL
+        return Result.success("/uploads/" + newName);
     }
 
     /**

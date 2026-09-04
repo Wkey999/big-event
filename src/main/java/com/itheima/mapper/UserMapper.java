@@ -16,7 +16,13 @@ public interface UserMapper {
     @Select("SELECT * FROM user WHERE id = #{id} AND deleted = 0")
     User findById(Long id);
 
-    @Update("UPDATE user SET nickname = #{nickname}, email = #{email}, avatar = #{avatar}, update_time = NOW() WHERE id = #{id}")
+    @Update("<script>" +
+            "UPDATE user SET update_time = NOW()" +
+            "<if test='nickname != null'>, nickname = #{nickname}</if>" +
+            "<if test='email != null'>, email = #{email}</if>" +
+            "<if test='avatar != null'>, avatar = #{avatar}</if>" +
+            " WHERE id = #{id}" +
+            "</script>")
     int update(User user);
 
     @Update("UPDATE user SET password = #{password}, update_time = NOW() WHERE id = #{id}")
