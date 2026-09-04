@@ -1,0 +1,42 @@
+### 1. 注册新用户
+POST http://localhost:8080/user/register
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "123456",
+  "rePassword": "123456"
+}
+
+### 2. 登录（先执行注册，再用同样的账号密码登录）
+POST http://localhost:8080/user/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "123456"
+}
+
+### 3. 获取当前用户信息（把下面的 YOUR_TOKEN 替换成登录返回的 token）
+GET http://localhost:8080/user/userInfo
+Authorization: YOUR_TOKEN
+
+### 4. 修改用户信息
+PUT http://localhost:8080/user/update
+Content-Type: application/json
+Authorization: YOUR_TOKEN
+
+{
+  "nickname": "管理员",
+  "email": "admin@example.com"
+}
+
+### 5. 修改密码
+PUT http://localhost:8080/user/updatePwd
+Content-Type: application/json
+Authorization: YOUR_TOKEN
+
+{
+  "old_pwd": "123456",
+  "new_pwd": "654321"
+}
