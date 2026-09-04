@@ -5,6 +5,7 @@ import com.itheima.pojo.User;
 import com.itheima.pojo.UserLoginDTO;
 import com.itheima.pojo.UserRegisterDTO;
 import com.itheima.pojo.UserUpdateDTO;
+import com.itheima.pojo.UserUpdatePwdDTO;
 import com.itheima.service.UserService;
 import com.itheima.utils.OssUtils;
 import com.itheima.utils.ThreadLocalUtils;
@@ -108,12 +109,14 @@ public class UserController {
      * 修改当前用户密码
      * PUT /user/updatePwd
      * 请求体: {"old_pwd":"旧密码", "new_pwd":"新密码"}
-     * 会先验证旧密码是否正确
+     * 会先验证旧密码是否正确。
+     * 之前收 Map 零校验：新密码传空串也能落库，而登录接口密码是 @NotBlank，
+     * 改完账号就永远登录不进去，所以换成带校验的 DTO。
      */
     @PutMapping("/updatePwd")
-    public Result<Void> updatePassword(@RequestBody Map<String, String> params) {
+    public Result<Void> updatePassword(@Valid @RequestBody UserUpdatePwdDTO dto) {
         Long userId = ThreadLocalUtils.getUserId();
-        userService.updatePassword(userId, params.get("old_pwd"), params.get("new_pwd"));
+        userService.updatePassword(userId, dto);
         return Result.success();
     }
 }

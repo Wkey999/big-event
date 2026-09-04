@@ -4,6 +4,7 @@ import com.itheima.mapper.UserMapper;
 import com.itheima.pojo.User;
 import com.itheima.pojo.UserLoginDTO;
 import com.itheima.pojo.UserRegisterDTO;
+import com.itheima.pojo.UserUpdatePwdDTO;
 import com.itheima.service.UserService;
 import com.itheima.utils.JwtUtils;
 import lombok.RequiredArgsConstructor;
@@ -70,11 +71,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void updatePassword(Long userId, String oldPassword, String newPassword) {
+    public void updatePassword(Long userId, UserUpdatePwdDTO dto) {
         User user = userMapper.findById(userId);
-        if (user == null || !passwordEncoder.matches(oldPassword, user.getPassword())) {
+        if (user == null || !passwordEncoder.matches(dto.getOld_pwd(), user.getPassword())) {
             throw new RuntimeException("原密码错误");
         }
-        userMapper.updatePassword(userId, passwordEncoder.encode(newPassword));
+        userMapper.updatePassword(userId, passwordEncoder.encode(dto.getNew_pwd()));
     }
 }

@@ -3,6 +3,7 @@ package com.itheima.service;
 import com.itheima.pojo.User;
 import com.itheima.pojo.UserLoginDTO;
 import com.itheima.pojo.UserRegisterDTO;
+import com.itheima.pojo.UserUpdatePwdDTO;
 
 public interface UserService {
 
@@ -14,5 +15,5 @@ public interface UserService {
 
     void updateUserInfo(User user);
 
-    void updatePassword(Long userId, String oldPassword, String newPassword);
+    void updatePassword(Long userId, UserUpdatePwdDTO dto);
 }
