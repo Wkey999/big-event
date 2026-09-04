@@ -1,7 +1,7 @@
-server:
-  port: 8080
-
 spring:
+  profiles:
+    # 默认激活开发环境；部署时用 --spring.profiles.active=prod 覆盖
+    active: dev
   config:
     import:
       # OSS 密钥配置（本地文件，被 .gitignore 排除，需自行创建 application-oss.yml）
@@ -10,9 +10,6 @@ spring:
       - optional:classpath:application-secret.yml
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/big_event?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
-    username: root
-    # password 见 application-secret.yml
   servlet:
     multipart:
       max-file-size: 10MB
@@ -23,13 +20,9 @@ mybatis:
   type-aliases-package: com.itheima.pojo
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 jwt:
   # secret 见 application-secret.yml
   expiration: 86400000
   header: Authorization
   prefix: "Bearer "
-
-file:
-  upload-path: D:/workplace/big-event/uploads/

@@ -1,0 +1,20 @@
+# ============================================================
+# 开发环境：本地数据库、打印 SQL、端口 8080
+# 默认激活（见 application.yml 的 spring.profiles.active）
+# ============================================================
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/big_event?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    username: root
+    # password 见 application-secret.yml
+
+mybatis:
+  configuration:
+    # 开发环境把 SQL 打到控制台，方便调试；prod 不配置此项即不打印
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+file:
+  upload-path: D:/workplace/big-event/uploads/

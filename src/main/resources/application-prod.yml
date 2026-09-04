@@ -1,0 +1,16 @@
+# ============================================================
+# 生产环境：部署时把数据库地址/账号换成真实值
+# 启动方式: java -jar big-event-1.0-SNAPSHOT.jar --spring.profiles.active=prod
+# 注意: 端口与 dev 错开，两个环境可同时跑在一台机器上互不冲突
+# ============================================================
+server:
+  port: 9090
+
+spring:
+  datasource:
+    url: jdbc:mysql://填写生产库地址:3306/big_event?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    username: 填写生产库账号
+    # 生产密码建议单独建 application-secret-prod.yml 管理，当前暂复用 application-secret.yml
+
+file:
+  upload-path: /data/big-event/uploads/
