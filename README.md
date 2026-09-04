@@ -55,22 +55,40 @@ mvn spring-boot:run          # dev profile，端口 8080
 
 接口调试示例见 `src/test/http/user-api.http`（IDEA HTTP Client / 导入 Postman）。
 
-## 未来规划
+## 未来规划（任务清单）
 
-**信息聚合方向（核心演进目标）**：从「用户自发创作」升级为「个性化资讯门户」——
+### 阶段 0 · 现状态收尾
+- [ ] `GlobalExceptionHandler` 改为记录堆栈 + 返回笼统「服务器内部错误」，不再向客户端泄漏 `e.getMessage()`（仓库已公开，优先级最高）
+- [ ] 引入 `BusinessException` 类型，把业务提示与基础设施异常从 `RuntimeException` 里分离出来
+- [ ] 分类删除保护：名下仍有文章时拒绝删除（或级联软删），消除「孤儿文章改不动」问题
+- [ ] 清理历史测试账号与演示数据
 
-- **多源订阅**：按平台选择信息来源（X/Twitter、抖音、B 站、微博、权威媒体官网等），按领域打标签（如 NBA 快讯 · Shams 首发推文、央视权威新闻、国际政治人物发言快照、西方科技媒体动态）；
-- **定时爬虫**：授权 API 优先（X API / 哔哩哔哩开放平台），网页源做合规抓取，产出统一落进现有 `article` 模型（新增 `source` 字段与来源分类）；
-- **清洗与去重**：同一事件多源转载的指纹去重、正文抽取、机打分类标签（`tag` / `article_tag` 表已建好）；
-- **公开信息流**：C 端免登录浏览按分类/来源筛选的瀑布流（前端信息流组件已就绪），逐步引入推荐排序。
+### 阶段 1 · 登录与安全
+- [ ] Redis 登录态治理：token 吊销、单设备登录、`userInfo` 缓存
+- [ ] JWT 双令牌（access + refresh），前端 axios 拦截器无感续期
+- [ ] 注册密码 BCrypt 化（`spring-security-crypto` 依赖已在），存量密码迁移方案
+- [ ] OSS AccessKey 定期轮换 + RAM 最小权限策略复核
 
-**工程优化路线**：
+### 阶段 2 · 社区互动
+- [ ] 评论模块：`comment` 表 CRUD + 分页 + 文章评论数冗余计数
+- [ ] 点赞/收藏：基于已建的多态 `user_action` 表，含防重复计数
+- [ ] 标签体系：发文自动抽取 + 手动打标，接入 `tag` / `article_tag` 表，标签聚合页
 
-- Redis 登录态治理（token 吊销 / 单设备登录 / userInfo 缓存）
-- JWT 双令牌刷新、密码全面 BCrypt 化
-- 评论 / 点赞 / 收藏模块（`comment`、`user_action` 表已预留）
-- Docker + docker-compose 一键部署（app + MySQL + Redis）
-- 前端 TypeScript 重构
+### 阶段 3 · 多源信息聚合（核心演进：从创作社区到个人资讯门户）
+- [ ] **来源注册表**：新增 `source` 表（平台、类型、权威度、抓取方式、频率），文章模型挂 `source_id`
+- [ ] **X/Twitter 源**：官方 API 订阅关注账号时间线——体育快讯（如 Shams 的 NBA 爆料）、政治人物发言快照（如特朗普系列），字段化落库
+- [ ] **B 站 / 抖音源**：开放平台接口优先，视频标题+简介+字幕转图文摘要
+- [ ] **权威媒体源**：央视等国内媒体、西方科技媒体走 RSS / 页面解析 + 正文抽取（readability 算法）
+- [ ] **清洗管道**：内容指纹去重（多源转载）、敏感词过滤、机打分类标签
+- [ ] **调度与容错**：定时任务框架（Spring Scheduler 起步，量大再上 XXL-Job）、抓取失败重试与告警
+- [ ] **合规底线**：遵守 robots.txt 与平台 ToS、限速、转载注明出处、版权下架机制
+- [ ] **C 端公开信息流**：免登录浏览、按来源/分类筛选，接入现有瀑布流前端；再往后做关注订阅与推荐排序
+
+### 阶段 4 · 工程化与部署
+- [ ] Dockerfile + docker-compose 一键起（app + MySQL + Redis + Nginx 托管前端静态资源）
+- [ ] GitHub Actions CI：构建 + 单测 + 镜像推送
+- [ ] 可观测性：actuator 健康检查、日志文件滚动、慢 SQL 采样
+- [ ] 前端 TypeScript 重构 + 移动端适配
 
 ## License
 
