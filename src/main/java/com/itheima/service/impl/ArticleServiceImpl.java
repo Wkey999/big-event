@@ -33,21 +33,34 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public void update(Article article) {
         article.setUserId(ThreadLocalUtils.getUserId());
-        articleMapper.update(article);
+        int rows = articleMapper.update(article);
+        // update 带 user_id 条件：0 行 = 文章不存在或不属于当前用户
+        if (rows == 0) {
+            throw new RuntimeException("更新失败：文章不存在或无权操作");
+        }
     }
 
     @Override
     public Article getById(Long id) {
         Article article = articleMapper.findById(id);
-        if (article != null) {
-            articleMapper.incrementViewCount(id);
+        if (article == null) {
+            throw new RuntimeException("文章不存在");
         }
+        // 归属校验：只能查看自己的文章（含草稿），防止越权读取
+        if (!article.getUserId().equals(ThreadLocalUtils.getUserId())) {
+            throw new RuntimeException("无权访问该文章");
+        }
+        articleMapper.incrementViewCount(id);
         return article;
     }
 
     @Override
     public void delete(Long id) {
-        articleMapper.deleteById(id, ThreadLocalUtils.getUserId());
+        int rows = articleMapper.deleteById(id, ThreadLocalUtils.getUserId());
+        // delete 带 user_id 条件：0 行 = 文章不存在或不属于当前用户
+        if (rows == 0) {
+            throw new RuntimeException("删除失败：文章不存在或无权操作");
+        }
     }
 
     /**
