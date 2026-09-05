@@ -24,7 +24,7 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public void add(ArticleAddDTO dto) {
         Long userId = ThreadLocalUtils.getUserId();
-        assertCategoryOwned(dto.getCategoryId(), userId);
+        assertCategoryExists(dto.getCategoryId());
         Article article = new Article();
         article.setTitle(dto.getTitle());
         article.setContent(dto.getContent());
@@ -39,7 +39,7 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public void update(ArticleUpdateDTO dto) {
         Long userId = ThreadLocalUtils.getUserId();
-        assertCategoryOwned(dto.getCategoryId(), userId);
+        assertCategoryExists(dto.getCategoryId());
         Article article = new Article();
         article.setId(dto.getId());
         article.setTitle(dto.getTitle());
@@ -58,14 +58,12 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     /**
-     * categoryId 由客户端传，不校验就能把文章挂到别人的分类上（越权写入 + 数据串号）。
-     * 分类不存在与分类属于他人返回同一句话，避免这个接口被用来探测别人的分类 id。
-     * findById 自带 deleted = 0 条件，所以已软删的分类也不能再挂。
+     * categoryId 由客户端传。分类已是全站共享池，任何人发布/编辑时都可引用任意
+     * 存在的分类；分类不存在与已软删都会在此被拦下（findById 自带 deleted = 0）。
      */
-    private void assertCategoryOwned(Long categoryId, Long userId) {
-        Category category = categoryMapper.findById(categoryId);
-        if (category == null || !category.getUserId().equals(userId)) {
-            throw new RuntimeException("分类不存在或无权使用");
+    private void assertCategoryExists(Long categoryId) {
+        if (categoryMapper.findById(categoryId) == null) {
+            throw new RuntimeException("分类不存在");
         }
     }
 
@@ -83,8 +81,10 @@ public class ArticleServiceImpl implements ArticleService {
         if (article == null) {
             throw new RuntimeException("文章不存在");
         }
-        // 归属校验：只能查看自己的文章（含草稿），防止越权读取
-        if (!article.getUserId().equals(ThreadLocalUtils.getUserId())) {
+        // 已发布 → 全员可看；草稿 → 仅作者本人可见
+        boolean published = Integer.valueOf(1).equals(article.getState());
+        Long userId = ThreadLocalUtils.getUserId();
+        if (!published && !article.getUserId().equals(userId)) {
             throw new RuntimeException("无权访问该文章");
         }
         articleMapper.incrementViewCount(id);

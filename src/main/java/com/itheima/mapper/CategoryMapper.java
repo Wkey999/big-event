@@ -11,9 +11,13 @@ public interface CategoryMapper {
     @Select("SELECT * FROM category WHERE user_id = #{userId} AND deleted = 0 ORDER BY sort_order, create_time")
     List<Category> findByUserId(Long userId);
 
-    // 同一用户下分类名唯一（uk_user_category），落库前先查一次，避免抛出裸 SQL 异常
-    @Select("SELECT * FROM category WHERE user_id = #{userId} AND category_name = #{categoryName} AND deleted = 0")
-    Category findByUserIdAndName(@Param("userId") Long userId, @Param("categoryName") String categoryName);
+    // 全站共享分类：任何人可看、可引用（做文章分类下拉/标签映射）
+    @Select("SELECT * FROM category WHERE deleted = 0 ORDER BY sort_order, create_time")
+    List<Category> findAll();
+
+    // 全站范围内分类名唯一；新模型下分类是共享池，重名要跨用户检查
+    @Select("SELECT * FROM category WHERE category_name = #{categoryName} AND deleted = 0 ORDER BY id LIMIT 1")
+    Category findByName(@Param("categoryName") String categoryName);
 
     // sort_order/status 在 DTO 里是可选字段，但列是 NOT NULL，缺省时用列默认值 0/1
     @Insert("INSERT INTO category(category_name, user_id, sort_order, status) " +

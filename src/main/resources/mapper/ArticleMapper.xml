@@ -4,12 +4,22 @@
 
     <select id="findByCondition" resultType="com.itheima.pojo.Article">
         SELECT * FROM article
-        WHERE deleted = 0 AND user_id = #{userId}
+        WHERE deleted = 0
+        <choose>
+            <!-- 已发布：全站共享，任何人可看（首页信息流） -->
+            <when test="state == 1">
+                AND state = 1
+            </when>
+            <!-- 草稿或不筛选：仅作者本人（管理页），草稿不会泄露给他人 -->
+            <otherwise>
+                AND user_id = #{userId}
+                <if test="state != null">
+                    AND state = #{state}
+                </if>
+            </otherwise>
+        </choose>
         <if test="categoryId != null">
             AND category_id = #{categoryId}
-        </if>
-        <if test="state != null">
-            AND state = #{state}
         </if>
         ORDER BY create_time DESC
         LIMIT #{offset}, #{pageSize}
@@ -17,12 +27,20 @@
 
     <select id="countByCondition" resultType="java.lang.Long">
         SELECT COUNT(*) FROM article
-        WHERE deleted = 0 AND user_id = #{userId}
+        WHERE deleted = 0
+        <choose>
+            <when test="state == 1">
+                AND state = 1
+            </when>
+            <otherwise>
+                AND user_id = #{userId}
+                <if test="state != null">
+                    AND state = #{state}
+                </if>
+            </otherwise>
+        </choose>
         <if test="categoryId != null">
             AND category_id = #{categoryId}
-        </if>
-        <if test="state != null">
-            AND state = #{state}
         </if>
     </select>
 

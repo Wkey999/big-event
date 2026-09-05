@@ -19,14 +19,15 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public List<Category> list() {
-        return categoryMapper.findByUserId(ThreadLocalUtils.getUserId());
+        // 全站共享分类：所有人看到同一份分类池，做下拉与标签映射
+        return categoryMapper.findAll();
     }
 
     @Override
     public void add(Category category) {
         Long userId = ThreadLocalUtils.getUserId();
         category.setUserId(userId);
-        assertNameAvailable(userId, category.getCategoryName(), null);
+        assertNameAvailable(category.getCategoryName(), null);
         categoryMapper.insert(category);
     }
 
@@ -36,26 +37,22 @@ public class CategoryServiceImpl implements CategoryService {
         if (category == null) {
             throw new RuntimeException("分类不存在");
         }
-        // 归属校验：只能查看自己的分类，防止越权读取他人数据
-        if (!category.getUserId().equals(ThreadLocalUtils.getUserId())) {
-            throw new RuntimeException("无权访问该分类");
-        }
+        // 分类是共享元数据，详情开放给所有登录用户
         return category;
     }
 
     @Override
     public void update(Category category) {
-        // 先校验分类存在且属于当前用户
-        Category existing = getById(category.getId());
-        assertNameAvailable(existing.getUserId(), category.getCategoryName(), category.getId());
+        // 存在性 + 归属：共享分类可被所有人引用，但只有创建者能改名/改配置
+        assertOwned(category.getId());
+        assertNameAvailable(category.getCategoryName(), category.getId());
         categoryMapper.update(category);
     }
 
     @Override
     public void delete(Long id) {
-        // 先校验分类存在且属于当前用户，越权/不存在直接抛错而非静默成功
-        getById(id);
-        // 名下仍有文章时不允许删除，否则这些文章的分类会失效，编辑时无法通过归属校验
+        assertOwned(id);
+        // 名下仍有文章时不允许删除，否则这些文章的分类会失效
         if (articleMapper.countByCategoryId(id) > 0) {
             throw new RuntimeException("该分类下仍有文章，请先删除或转移文章");
         }
@@ -63,10 +60,23 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     /**
-     * 分类名在同一用户下唯一；excludeId 为更新时自身 id（改名不与自己冲突），新增时传 null
+     * 校验分类存在且属于当前用户（更新/删除的写权限边界）
      */
-    private void assertNameAvailable(Long userId, String categoryName, Long excludeId) {
-        Category existing = categoryMapper.findByUserIdAndName(userId, categoryName);
+    private void assertOwned(Long id) {
+        Category existing = categoryMapper.findById(id);
+        if (existing == null) {
+            throw new RuntimeException("分类不存在");
+        }
+        if (!existing.getUserId().equals(ThreadLocalUtils.getUserId())) {
+            throw new RuntimeException("无权操作该分类");
+        }
+    }
+
+    /**
+     * 分类名在全站唯一；excludeId 为更新时自身 id（改名不与自己冲突），新增时传 null
+     */
+    private void assertNameAvailable(String categoryName, Long excludeId) {
+        Category existing = categoryMapper.findByName(categoryName);
         if (existing != null && !existing.getId().equals(excludeId)) {
             throw new RuntimeException("分类名称已存在");
         }
