@@ -51,10 +51,16 @@ public class ArticleServiceImpl implements ArticleService {
         article.setSummary(emptyIfNull(dto.getSummary()));
         article.setCategoryId(dto.getCategoryId());
         article.setState(dto.getState());
-        // 作者不可改：update 的 WHERE 带 user_id，越权/不存在时影响 0 行
-        article.setUserId(userId);
-        int rows = articleMapper.update(article);
-        // update 带 user_id 条件：0 行 = 文章不存在或不属于当前用户
+
+        int rows;
+        if (isAdmin()) {
+            // 管理员可改任意文章，且不改变原作者（updateAny 不动 user_id）
+            rows = articleMapper.updateAny(article);
+        } else {
+            // 普通用户只能改自己的：WHERE 带 user_id，越权/不存在影响 0 行
+            article.setUserId(userId);
+            rows = articleMapper.update(article);
+        }
         if (rows == 0) {
             throw new RuntimeException("更新失败：文章不存在或无权操作");
         }
@@ -98,11 +104,26 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     public void delete(Long id) {
-        int rows = articleMapper.deleteById(id, ThreadLocalUtils.getUserId());
-        // delete 带 user_id 条件：0 行 = 文章不存在或不属于当前用户
+        int rows;
+        if (isAdmin()) {
+            // 管理员可删除任意文章
+            rows = articleMapper.deleteByIdAny(id);
+        } else {
+            // 普通用户只能删自己的
+            rows = articleMapper.deleteById(id, ThreadLocalUtils.getUserId());
+        }
+        // 0 行 = 文章不存在或不属于当前用户
         if (rows == 0) {
             throw new RuntimeException("删除失败：文章不存在或无权操作");
         }
+    }
+
+    /**
+     * 当前登录用户是否为管理员（user.role = 1）
+     */
+    private boolean isAdmin() {
+        User me = userMapper.findById(ThreadLocalUtils.getUserId());
+        return me != null && Integer.valueOf(1).equals(me.getRole());
     }
 
     /**

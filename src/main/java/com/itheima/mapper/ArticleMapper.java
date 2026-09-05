@@ -18,11 +18,21 @@ public interface ArticleMapper {
             "WHERE id = #{id} AND user_id = #{userId}")
     int update(Article article);
 
+    // 管理员更新任意文章：不限制作者，且不改动 user_id（保留原作者）
+    @Update("UPDATE article SET title = #{title}, content = #{content}, cover_img = #{coverImg}, " +
+            "summary = #{summary}, category_id = #{categoryId}, state = #{state}, update_time = NOW() " +
+            "WHERE id = #{id}")
+    int updateAny(Article article);
+
     @Select("SELECT * FROM article WHERE id = #{id} AND deleted = 0")
     Article findById(Long id);
 
     @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id} AND user_id = #{userId}")
     int deleteById(@Param("id") Long id, @Param("userId") Long userId);
+
+    // 管理员删除任意文章：不限制作者
+    @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id}")
+    int deleteByIdAny(Long id);
 
     @Select("SELECT count(*) FROM article WHERE category_id = #{categoryId} AND deleted = 0")
     Long countByCategoryId(Long categoryId);
