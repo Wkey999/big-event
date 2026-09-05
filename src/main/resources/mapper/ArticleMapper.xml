@@ -10,9 +10,11 @@
             <when test="state == 1">
                 AND state = 1
             </when>
-            <!-- 草稿或不筛选：仅作者本人（管理页），草稿不会泄露给他人 -->
+            <!-- 草稿或不筛选：普通用户仅作者本人（管理页）；管理员 userId 传 null = 全站所有文章(含草稿) -->
             <otherwise>
-                AND user_id = #{userId}
+                <if test="userId != null">
+                    AND user_id = #{userId}
+                </if>
                 <if test="state != null">
                     AND state = #{state}
                 </if>
@@ -33,7 +35,9 @@
                 AND state = 1
             </when>
             <otherwise>
-                AND user_id = #{userId}
+                <if test="userId != null">
+                    AND user_id = #{userId}
+                </if>
                 <if test="state != null">
                     AND state = #{state}
                 </if>

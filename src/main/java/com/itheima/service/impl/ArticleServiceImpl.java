@@ -2,11 +2,13 @@ package com.itheima.service.impl;
 
 import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
+import com.itheima.mapper.UserMapper;
 import com.itheima.pojo.Article;
 import com.itheima.pojo.ArticleAddDTO;
 import com.itheima.pojo.ArticleUpdateDTO;
 import com.itheima.pojo.Category;
 import com.itheima.pojo.PageBean;
+import com.itheima.pojo.User;
 import com.itheima.service.ArticleService;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final ArticleMapper articleMapper;
     private final CategoryMapper categoryMapper;
+    private final UserMapper userMapper;
 
     @Override
     public void add(ArticleAddDTO dto) {
@@ -81,10 +84,12 @@ public class ArticleServiceImpl implements ArticleService {
         if (article == null) {
             throw new RuntimeException("文章不存在");
         }
-        // 已发布 → 全员可看；草稿 → 仅作者本人可见
+        // 已发布 → 全员可看；草稿 → 仅作者本人，但管理员可纵览（含他人草稿）
         boolean published = Integer.valueOf(1).equals(article.getState());
         Long userId = ThreadLocalUtils.getUserId();
-        if (!published && !article.getUserId().equals(userId)) {
+        User me = userMapper.findById(userId);
+        boolean admin = me != null && Integer.valueOf(1).equals(me.getRole());
+        if (!published && !article.getUserId().equals(userId) && !admin) {
             throw new RuntimeException("无权访问该文章");
         }
         articleMapper.incrementViewCount(id);
@@ -109,11 +114,16 @@ public class ArticleServiceImpl implements ArticleService {
         Long userId = ThreadLocalUtils.getUserId();
         Integer stateInt = parseState(state);
 
-        Long total = articleMapper.countByCondition(userId, categoryId, stateInt);
+        // 管理员纵览全站（userId 传 null 即不过滤作者，草稿也可见）；普通用户只看自己的
+        User me = userMapper.findById(userId);
+        boolean admin = me != null && Integer.valueOf(1).equals(me.getRole());
+        Long queryUserId = admin ? null : userId;
+
+        Long total = articleMapper.countByCondition(queryUserId, categoryId, stateInt);
         List<Article> items = List.of();
         if (total > 0) {
             int offset = (pageNum - 1) * pageSize;
-            items = articleMapper.findByCondition(userId, categoryId, stateInt, offset, pageSize);
+            items = articleMapper.findByCondition(queryUserId, categoryId, stateInt, offset, pageSize);
         }
         return new PageBean<>(total, items);
     }
