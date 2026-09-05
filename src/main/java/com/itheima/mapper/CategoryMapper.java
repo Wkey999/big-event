@@ -36,6 +36,6 @@ public interface CategoryMapper {
             "update_time = NOW() WHERE id = #{id}")
     int update(Category category);
 
-    @Update("UPDATE category SET deleted = 1, update_time = NOW() WHERE id = #{id} AND user_id = #{userId}")
-    int deleteById(@Param("id") Long id, @Param("userId") Long userId);
+    @Update("UPDATE category SET deleted = 1, update_time = NOW() WHERE id = #{id}")
+    int deleteLogical(Long id);
 }

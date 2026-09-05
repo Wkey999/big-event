@@ -2,7 +2,9 @@ package com.itheima.service.impl;
 
 import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
+import com.itheima.mapper.UserMapper;
 import com.itheima.pojo.Category;
+import com.itheima.pojo.User;
 import com.itheima.service.CategoryService;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
@@ -16,15 +18,18 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryMapper categoryMapper;
     private final ArticleMapper articleMapper;
+    private final UserMapper userMapper;
 
     @Override
     public List<Category> list() {
-        // 全站共享分类：所有人看到同一份分类池，做下拉与标签映射
+        // 全站共享频道：所有人看到同一份分类池，做下拉与标签映射
         return categoryMapper.findAll();
     }
 
     @Override
     public void add(Category category) {
+        // 频道制：只有管理员能新建频道
+        assertAdmin();
         Long userId = ThreadLocalUtils.getUserId();
         category.setUserId(userId);
         assertNameAvailable(category.getCategoryName(), null);
@@ -43,32 +48,30 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public void update(Category category) {
-        // 存在性 + 归属：共享分类可被所有人引用，但只有创建者能改名/改配置
-        assertOwned(category.getId());
+        // 频道制：只有管理员能改名/改配置；分类可被所有人引用
+        assertAdmin();
         assertNameAvailable(category.getCategoryName(), category.getId());
         categoryMapper.update(category);
     }
 
     @Override
     public void delete(Long id) {
-        assertOwned(id);
+        // 频道制：只有管理员能删除频道（不限该频道当初由谁创建）
+        assertAdmin();
         // 名下仍有文章时不允许删除，否则这些文章的分类会失效
         if (articleMapper.countByCategoryId(id) > 0) {
             throw new RuntimeException("该分类下仍有文章，请先删除或转移文章");
         }
-        categoryMapper.deleteById(id, ThreadLocalUtils.getUserId());
+        categoryMapper.deleteLogical(id);
     }
 
     /**
-     * 校验分类存在且属于当前用户（更新/删除的写权限边界）
+     * 当前登录用户必须是管理员（user.role = 1），否则拒绝写操作
      */
-    private void assertOwned(Long id) {
-        Category existing = categoryMapper.findById(id);
-        if (existing == null) {
-            throw new RuntimeException("分类不存在");
-        }
-        if (!existing.getUserId().equals(ThreadLocalUtils.getUserId())) {
-            throw new RuntimeException("无权操作该分类");
+    private void assertAdmin() {
+        User user = userMapper.findById(ThreadLocalUtils.getUserId());
+        if (user == null || !Integer.valueOf(1).equals(user.getRole())) {
+            throw new RuntimeException("需要管理员权限");
         }
     }
 
