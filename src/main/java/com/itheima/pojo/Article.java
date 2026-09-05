@@ -36,4 +36,9 @@ public class Article {
     private LocalDateTime updateTime;
     /** 逻辑删除：0-未删 1-已删 */
     private Integer deleted;
+
+    /** 作者昵称 —— 非 article 表字段，仅列表查询 LEFT JOIN user 时填充（信息流卡片展示用） */
+    private String authorNickname;
+    /** 作者头像 —— 同上，非表字段 */
+    private String authorAvatar;
 }
