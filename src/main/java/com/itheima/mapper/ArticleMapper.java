@@ -24,6 +24,9 @@ public interface ArticleMapper {
     @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id} AND user_id = #{userId}")
     int deleteById(@Param("id") Long id, @Param("userId") Long userId);
 
+    @Select("SELECT count(*) FROM article WHERE category_id = #{categoryId} AND deleted = 0")
+    Long countByCategoryId(Long categoryId);
+
     List<Article> findByCondition(@Param("userId") Long userId,
                                   @Param("categoryId") Long categoryId,
                                   @Param("state") Integer state,

@@ -1,5 +1,6 @@
 package com.itheima.service.impl;
 
+import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
 import com.itheima.pojo.Category;
 import com.itheima.service.CategoryService;
@@ -14,6 +15,7 @@ import java.util.List;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryMapper categoryMapper;
+    private final ArticleMapper articleMapper;
 
     @Override
     public List<Category> list() {
@@ -53,6 +55,10 @@ public class CategoryServiceImpl implements CategoryService {
     public void delete(Long id) {
         // 先校验分类存在且属于当前用户，越权/不存在直接抛错而非静默成功
         getById(id);
+        // 名下仍有文章时不允许删除，否则这些文章的分类会失效，编辑时无法通过归属校验
+        if (articleMapper.countByCategoryId(id) > 0) {
+            throw new RuntimeException("该分类下仍有文章，请先删除或转移文章");
+        }
         categoryMapper.deleteById(id, ThreadLocalUtils.getUserId());
     }
 

@@ -34,6 +34,7 @@
 **数据层正确性**
 - 修复 `CategoryMapper` insert/update 静默丢列导致 `sortOrder/status` 永远写不进库的 bug（`IFNULL` 局部更新语义）；明确 `UserMapper` 局部更新 vs `ArticleMapper` 全量覆盖的不同契约并在前端对齐。
 - 表设计沿用课程思想：软删除、无物理外键、冗余计数字段、多态用户行为表（为后续点赞/收藏预留）。
+- 分类删除前置校验：名下仍有未删除文章时拒绝软删（无物理外键，靠服务层守住引用完整性），避免文章失去分类后既改不动也筛不出。
 
 **密钥与配置工程化**
 - JWT 密钥、数据库密码、OSS AccessKey 全部收敛到 gitignored 的 `application-secret.yml` / `application-oss.yml`，经 `spring.config.import` 注入——**仓库零明文密钥**；
@@ -58,9 +59,9 @@ mvn spring-boot:run          # dev profile，端口 8080
 ## 未来规划（任务清单）
 
 ### 阶段 0 · 现状态收尾
-- [ ] `GlobalExceptionHandler` 改为记录堆栈 + 返回笼统「服务器内部错误」，不再向客户端泄漏 `e.getMessage()`（仓库已公开，优先级最高）
-- [ ] 引入 `BusinessException` 类型，把业务提示与基础设施异常从 `RuntimeException` 里分离出来
-- [ ] 分类删除保护：名下仍有文章时拒绝删除（或级联软删），消除「孤儿文章改不动」问题
+- [x] `GlobalExceptionHandler` 记录堆栈 + 返回笼统「服务器内部错误」，不再向客户端泄漏 `e.getMessage()`；只回传「裸」`RuntimeException` 的业务提示，框架异常（`DataAccessException` 等子类）一律按内部错误处理
+- [ ] 引入 `BusinessException` 类型，把业务提示与基础设施异常从 `RuntimeException` 里分离出来（当前用「异常类恰好是 RuntimeException」判定业务提示，类型化后可直接替换该判断）
+- [x] 分类删除保护：名下仍有文章时拒绝删除（返回「该分类下仍有文章，请先删除或转移文章」），消除「孤儿文章改不动」问题
 - [ ] 清理历史测试账号与演示数据
 
 ### 阶段 1 · 登录与安全
