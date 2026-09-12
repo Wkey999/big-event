@@ -38,7 +38,7 @@
 - 分类删除前置校验：该频道名下仍有未删除文章时拒绝软删（全站计数，无物理外键，靠服务层守住引用完整性），避免文章失去分类后既改不动也筛不出。
 
 **密钥与配置工程化**
-- JWT 密钥、数据库密码、OSS AccessKey 全部收敛到 gitignored 的 `application-secret.yml` / `application-oss.yml`，经 `spring.config.import` 注入——**仓库零明文密钥**；
+- JWT 密钥、数据库密码、OSS AccessKey 全部收敛到 gitignored 的 `application-secret.yml` / `application-oss.yml`，经 `spring.config.import` 注入；OSS AccessKey 经全历史扫描确认**零出现**（`git log --all -p` 中无 `LTAI`，命中的只是 `@Value` 配置键名与本文档说明）。初始提交 `a47a8cb` 的 `application.yml` 曾明文含 JWT 密钥与本地库密码，迁出后 JWT 密钥已于 2026-09-12 轮换、旧值失效，git 历史未重写——完整交代见[说明书 §6](docs/功能实现说明书.md)；
 - dev/prod 多环境 profile 拆分（端口、日志、上传路径隔离）。
 
 **配套前端（Vue 3，独立仓库）**
