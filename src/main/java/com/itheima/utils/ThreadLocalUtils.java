@@ -1,6 +1,6 @@
 package com.itheima.utils;
 
-public class  ThreadLocalUtils {
+public class ThreadLocalUtils {
 
     private static final ThreadLocal<Long> USER_ID = new ThreadLocal<>();
 

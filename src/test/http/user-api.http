@@ -43,7 +43,7 @@ Content-Type: image/png
 < ./avatar.png
 --WebAppBoundary--
 
-### 6. 更新头像URL（把第5步返回的 /uploads/xxx.png 填到 avatar 里）
+### 6. 更新头像URL（把第5步返回的 OSS 公网 URL 填到 avatar 里）
 PUT http://localhost:8080/user/update
 Content-Type: application/json
 Authorization: Bearer YOUR_TOKEN
@@ -51,7 +51,7 @@ Authorization: Bearer YOUR_TOKEN
 {
   "nickname": "管理员",
   "email": "admin@example.com",
-  "avatar": "/uploads/xxx.png"
+  "avatar": "https://你的桶名.oss-cn-xxx.aliyuncs.com/images/xxx.png"
 }
 
 ### 7. 修改密码

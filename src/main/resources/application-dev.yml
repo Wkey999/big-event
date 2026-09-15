@@ -15,6 +15,3 @@ mybatis:
   configuration:
     # 开发环境把 SQL 打到控制台，方便调试；prod 不配置此项即不打印
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-
-file:
-  upload-path: D:/workplace/big-event/uploads/

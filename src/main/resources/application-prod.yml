@@ -11,6 +11,3 @@ spring:
     url: jdbc:mysql://填写生产库地址:3306/big_event?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
     username: 填写生产库账号
     # 生产密码建议单独建 application-secret-prod.yml 管理，当前暂复用 application-secret.yml
-
-file:
-  upload-path: /data/big-event/uploads/
