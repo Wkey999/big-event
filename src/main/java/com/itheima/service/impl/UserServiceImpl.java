@@ -1,5 +1,6 @@
 package com.itheima.service.impl;
 
+import com.itheima.exception.BusinessException;
 import com.itheima.mapper.UserMapper;
 import com.itheima.pojo.User;
 import com.itheima.pojo.UserLoginDTO;
@@ -28,12 +29,12 @@ public class UserServiceImpl implements UserService {
     public void register(UserRegisterDTO dto) {
         // 校验两次密码是否一致
         if (!dto.getPassword().equals(dto.getRePassword())) {
-            throw new RuntimeException("两次密码不一致");
+            throw new BusinessException("两次密码不一致");
         }
         // 校验用户名是否已存在
         User existing = userMapper.findByUsername(dto.getUsername());
         if (existing != null) {
-            throw new RuntimeException("用户名已存在");
+            throw new BusinessException("用户名已存在");
         }
         // 构建用户对象，密码加密后持久化
         User user = new User();
@@ -47,10 +48,10 @@ public class UserServiceImpl implements UserService {
     public String login(UserLoginDTO dto) {
         User user = userMapper.findByUsername(dto.getUsername());
         if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            throw new RuntimeException("用户名或密码错误");
+            throw new BusinessException("用户名或密码错误");
         }
         if (user.getStatus() == 0) {
-            throw new RuntimeException("账号已被禁用");
+            throw new BusinessException("账号已被禁用");
         }
         return jwtUtils.generateToken(user.getId(), user.getUsername());
     }
@@ -59,7 +60,7 @@ public class UserServiceImpl implements UserService {
     public User getUserInfo(Long userId) {
         User user = userMapper.findById(userId);
         if (user == null) {
-            throw new RuntimeException("用户不存在");
+            throw new BusinessException("用户不存在");
         }
         user.setPassword(null);
         return user;
@@ -74,7 +75,7 @@ public class UserServiceImpl implements UserService {
     public void updatePassword(Long userId, UserUpdatePwdDTO dto) {
         User user = userMapper.findById(userId);
         if (user == null || !passwordEncoder.matches(dto.getOld_pwd(), user.getPassword())) {
-            throw new RuntimeException("原密码错误");
+            throw new BusinessException("原密码错误");
         }
         userMapper.updatePassword(userId, passwordEncoder.encode(dto.getNew_pwd()));
     }

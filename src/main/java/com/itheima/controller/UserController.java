@@ -1,5 +1,6 @@
 package com.itheima.controller;
 
+import com.itheima.exception.BusinessException;
 import com.itheima.pojo.Result;
 import com.itheima.pojo.User;
 import com.itheima.pojo.UserLoginDTO;
@@ -92,10 +93,17 @@ public class UserController {
      */
     @PostMapping("/upload")
     public Result<String> upload(@RequestParam MultipartFile file) throws IOException {
-        // 校验文件类型：只允许图片
+        if (file.isEmpty()) {
+            throw new BusinessException("文件不能为空");
+        }
+        // 校验文件类型：扩展名 + Content-Type 双重判断，只允许图片
         String originalName = file.getOriginalFilename();
         if (originalName == null || !originalName.matches("(?i).+\\.(jpg|jpeg|png|gif|webp)$")) {
-            throw new RuntimeException("只允许上传图片文件(jpg/png/gif/webp)");
+            throw new BusinessException("只允许上传图片文件(jpg/png/gif/webp)");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BusinessException("只允许上传图片文件(jpg/png/gif/webp)");
         }
         // 用UUID重命名，防止文件名冲突和路径注入
         String ext = originalName.substring(originalName.lastIndexOf("."));
