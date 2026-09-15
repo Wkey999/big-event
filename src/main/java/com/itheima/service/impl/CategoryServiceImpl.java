@@ -1,5 +1,6 @@
 package com.itheima.service.impl;
 
+import com.itheima.exception.BusinessException;
 import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
 import com.itheima.mapper.UserMapper;
@@ -40,7 +41,7 @@ public class CategoryServiceImpl implements CategoryService {
     public Category getById(Long id) {
         Category category = categoryMapper.findById(id);
         if (category == null) {
-            throw new RuntimeException("分类不存在");
+            throw new BusinessException("分类不存在");
         }
         // 分类是共享元数据，详情开放给所有登录用户
         return category;
@@ -51,7 +52,11 @@ public class CategoryServiceImpl implements CategoryService {
         // 频道制：只有管理员能改名/改配置；分类可被所有人引用
         assertAdmin();
         assertNameAvailable(category.getCategoryName(), category.getId());
-        categoryMapper.update(category);
+        // 之前忽略影响行数：更新不存在/已软删的 id 会静默返回成功，前端误以为改上了
+        int rows = categoryMapper.update(category);
+        if (rows == 0) {
+            throw new BusinessException("分类不存在");
+        }
     }
 
     @Override
@@ -60,7 +65,7 @@ public class CategoryServiceImpl implements CategoryService {
         assertAdmin();
         // 名下仍有文章时不允许删除，否则这些文章的分类会失效
         if (articleMapper.countByCategoryId(id) > 0) {
-            throw new RuntimeException("该分类下仍有文章，请先删除或转移文章");
+            throw new BusinessException("该分类下仍有文章，请先删除或转移文章");
         }
         categoryMapper.deleteLogical(id);
     }
@@ -71,7 +76,7 @@ public class CategoryServiceImpl implements CategoryService {
     private void assertAdmin() {
         User user = userMapper.findById(ThreadLocalUtils.getUserId());
         if (user == null || !Integer.valueOf(1).equals(user.getRole())) {
-            throw new RuntimeException("需要管理员权限");
+            throw new BusinessException("需要管理员权限");
         }
     }
 
@@ -81,7 +86,7 @@ public class CategoryServiceImpl implements CategoryService {
     private void assertNameAvailable(String categoryName, Long excludeId) {
         Category existing = categoryMapper.findByName(categoryName);
         if (existing != null && !existing.getId().equals(excludeId)) {
-            throw new RuntimeException("分类名称已存在");
+            throw new BusinessException("分类名称已存在");
         }
     }
 }

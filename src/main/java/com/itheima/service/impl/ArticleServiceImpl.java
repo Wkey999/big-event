@@ -1,5 +1,6 @@
 package com.itheima.service.impl;
 
+import com.itheima.exception.BusinessException;
 import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
 import com.itheima.mapper.UserMapper;
@@ -62,7 +63,7 @@ public class ArticleServiceImpl implements ArticleService {
             rows = articleMapper.update(article);
         }
         if (rows == 0) {
-            throw new RuntimeException("更新失败：文章不存在或无权操作");
+            throw new BusinessException("更新失败：文章不存在或无权操作");
         }
     }
 
@@ -72,7 +73,7 @@ public class ArticleServiceImpl implements ArticleService {
      */
     private void assertCategoryExists(Long categoryId) {
         if (categoryMapper.findById(categoryId) == null) {
-            throw new RuntimeException("分类不存在");
+            throw new BusinessException("分类不存在");
         }
     }
 
@@ -88,15 +89,14 @@ public class ArticleServiceImpl implements ArticleService {
     public Article getById(Long id) {
         Article article = articleMapper.findById(id);
         if (article == null) {
-            throw new RuntimeException("文章不存在");
+            throw new BusinessException("文章不存在");
         }
-        // 已发布 → 全员可看；草稿 → 仅作者本人，但管理员可纵览（含他人草稿）
+        // 已发布 → 全员可看；草稿 → 仅作者本人，但管理员可纵览（含他人草稿）。
+        // 无权限时与「不存在」回同一条模糊错误，防止用详情接口探测他人草稿是否存在
+        // （与 assertCategoryExists 的模糊化处理同一思路）。
         boolean published = Integer.valueOf(1).equals(article.getState());
-        Long userId = ThreadLocalUtils.getUserId();
-        User me = userMapper.findById(userId);
-        boolean admin = me != null && Integer.valueOf(1).equals(me.getRole());
-        if (!published && !article.getUserId().equals(userId) && !admin) {
-            throw new RuntimeException("无权访问该文章");
+        if (!published && !article.getUserId().equals(ThreadLocalUtils.getUserId()) && !isAdmin()) {
+            throw new BusinessException("文章不存在");
         }
         articleMapper.incrementViewCount(id);
         return article;
@@ -114,7 +114,7 @@ public class ArticleServiceImpl implements ArticleService {
         }
         // 0 行 = 文章不存在或不属于当前用户
         if (rows == 0) {
-            throw new RuntimeException("删除失败：文章不存在或无权操作");
+            throw new BusinessException("删除失败：文章不存在或无权操作");
         }
     }
 
@@ -132,13 +132,21 @@ public class ArticleServiceImpl implements ArticleService {
      */
     @Override
     public PageBean<Article> list(Integer pageNum, Integer pageSize, Long categoryId, String state) {
+        // 分页参数兜底：pageNum < 1 会算出负 offset 直接撞 SQL 语法错误；
+        // pageSize 不设上限时客户端可以传超大值拖垮查询
+        if (pageNum == null || pageNum < 1) {
+            pageNum = 1;
+        }
+        if (pageSize == null || pageSize < 1) {
+            pageSize = 5;
+        }
+        pageSize = Math.min(pageSize, 100);
+
         Long userId = ThreadLocalUtils.getUserId();
         Integer stateInt = parseState(state);
 
         // 管理员纵览全站（userId 传 null 即不过滤作者，草稿也可见）；普通用户只看自己的
-        User me = userMapper.findById(userId);
-        boolean admin = me != null && Integer.valueOf(1).equals(me.getRole());
-        Long queryUserId = admin ? null : userId;
+        Long queryUserId = isAdmin() ? null : userId;
 
         Long total = articleMapper.countByCondition(queryUserId, categoryId, stateInt);
         List<Article> items = List.of();
