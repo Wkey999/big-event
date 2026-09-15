@@ -61,7 +61,7 @@ mvn spring-boot:run          # dev profile，端口 8080
 
 ### 阶段 0 · 现状态收尾
 - [x] `GlobalExceptionHandler` 记录堆栈 + 返回笼统「服务器内部错误」，不再向客户端泄漏 `e.getMessage()`；只回传「裸」`RuntimeException` 的业务提示，框架异常（`DataAccessException` 等子类）一律按内部错误处理
-- [ ] 引入 `BusinessException` 类型，把业务提示与基础设施异常从 `RuntimeException` 里分离出来（当前用「异常类恰好是 RuntimeException」判定业务提示，类型化后可直接替换该判断）
+- [x] 引入 `BusinessException` 类型，把业务提示与基础设施异常从 `RuntimeException` 里分离出来（业务代码一律抛 `BusinessException`，全局异常处理器按类型放行，不再靠「异常类恰好是 RuntimeException」的脆弱约定）；顺带补齐 `HttpMessageNotReadableException`（请求体格式错误）与 `MaxUploadSizeExceededException`（文件超限）的友好提示
 - [x] 分类删除保护：名下仍有文章时拒绝删除（返回「该分类下仍有文章，请先删除或转移文章」），消除「孤儿文章改不动」问题
 - [ ] 清理历史测试账号（演示文章已于 2026-09-06 清洗：25 篇占位文软删、保留 17 篇补齐低饱和封面；ossselftest/layouttest 等测试账号仍在库）
 
