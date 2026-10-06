@@ -155,3 +155,21 @@ CREATE TABLE `file_record` (
   INDEX `idx_user_id` (`user_id`),
   INDEX `idx_usage_type` (`usage_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文件记录表';
+
+-- ============================================================
+-- 9. 浏览行为日志表（阶段 A 数据闭环 · 推荐系统的信号源）
+-- 说明：category_id 必须允许 NULL —— article.category_id 本身就允许 NULL（未分类文章），
+--       这里若写 NOT NULL，埋点会因非空约束失败，而埋点按设计是静默失败的，最难排查。
+-- ============================================================
+DROP TABLE IF EXISTS `browse_log`;
+CREATE TABLE `browse_log` (
+  `id`          bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id`     bigint unsigned NOT NULL COMMENT '浏览者ID',
+  `article_id`  bigint unsigned NOT NULL COMMENT '文章ID',
+  `category_id` bigint unsigned          DEFAULT NULL COMMENT '频道ID（冗余，聚合免JOIN；文章可未分类）',
+  `dwell_ms`    int             NOT NULL DEFAULT 0 COMMENT '停留毫秒，0=仅曝光',
+  `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  INDEX `idx_user_time` (`user_id`, `create_time`),
+  INDEX `idx_article` (`article_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='浏览行为日志（推荐信号来源）';
