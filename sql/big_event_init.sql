@@ -60,6 +60,7 @@ CREATE TABLE `article` (
   `state`       tinyint         NOT NULL DEFAULT 0 COMMENT '状态：0-草稿 1-已发布',
   `view_count`  int unsigned    NOT NULL DEFAULT 0 COMMENT '浏览次数',
   `like_count`  int unsigned    NOT NULL DEFAULT 0 COMMENT '点赞次数（冗余计数，避免COUNT）',
+  `collect_count` int unsigned  NOT NULL DEFAULT 0 COMMENT '收藏次数（冗余计数，与 like_count 对称）',
   `comment_count` int unsigned  NOT NULL DEFAULT 0 COMMENT '评论次数（冗余计数）',
   `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

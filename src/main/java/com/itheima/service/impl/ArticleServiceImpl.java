@@ -3,6 +3,7 @@ package com.itheima.service.impl;
 import com.itheima.exception.BusinessException;
 import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
+import com.itheima.mapper.UserActionMapper;
 import com.itheima.mapper.UserMapper;
 import com.itheima.pojo.Article;
 import com.itheima.pojo.ArticleAddDTO;
@@ -11,6 +12,7 @@ import com.itheima.pojo.Category;
 import com.itheima.pojo.PageBean;
 import com.itheima.pojo.User;
 import com.itheima.service.ArticleService;
+import com.itheima.utils.ActionTypes;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleMapper articleMapper;
     private final CategoryMapper categoryMapper;
     private final UserMapper userMapper;
+    private final UserActionMapper userActionMapper;
 
     @Override
     public void add(ArticleAddDTO dto) {
@@ -95,10 +98,16 @@ public class ArticleServiceImpl implements ArticleService {
         // 无权限时与「不存在」回同一条模糊错误，防止用详情接口探测他人草稿是否存在
         // （与 assertCategoryExists 的模糊化处理同一思路）。
         boolean published = Integer.valueOf(1).equals(article.getState());
-        if (!published && !article.getUserId().equals(ThreadLocalUtils.getUserId()) && !isAdmin()) {
+        Long userId = ThreadLocalUtils.getUserId();
+        if (!published && !article.getUserId().equals(userId) && !isAdmin()) {
             throw new BusinessException("文章不存在");
         }
         articleMapper.incrementViewCount(id);
+        // 顺带返回当前用户的互动状态：前端点赞/收藏按钮直接高亮，不用再发一次请求
+        article.setLiked(userActionMapper.findId(userId, id,
+                ActionTypes.TARGET_TYPE_ARTICLE, ActionTypes.ACTION_TYPE_LIKE) != null);
+        article.setCollected(userActionMapper.findId(userId, id,
+                ActionTypes.TARGET_TYPE_ARTICLE, ActionTypes.ACTION_TYPE_COLLECT) != null);
         return article;
     }
 

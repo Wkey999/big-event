@@ -49,4 +49,20 @@ public interface ArticleMapper {
 
     @Update("UPDATE article SET view_count = view_count + 1 WHERE id = #{id}")
     int incrementViewCount(Long id);
+
+    // ---- 互动冗余计数 ----
+    // 都带 deleted = 0：已软删的文章不该再被点赞/收藏改计数（顺带补上写入路径缺 deleted 校验的欠账）
+    // 减计数用 IF(...) 兜底：列是 int unsigned，直接 -1 到负数会报错/回绕
+
+    @Update("UPDATE article SET like_count = like_count + 1 WHERE id = #{id} AND deleted = 0")
+    int incrementLikeCount(Long id);
+
+    @Update("UPDATE article SET like_count = IF(like_count > 0, like_count - 1, 0) WHERE id = #{id} AND deleted = 0")
+    int decrementLikeCount(Long id);
+
+    @Update("UPDATE article SET collect_count = collect_count + 1 WHERE id = #{id} AND deleted = 0")
+    int incrementCollectCount(Long id);
+
+    @Update("UPDATE article SET collect_count = IF(collect_count > 0, collect_count - 1, 0) WHERE id = #{id} AND deleted = 0")
+    int decrementCollectCount(Long id);
 }

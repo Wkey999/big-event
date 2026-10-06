@@ -28,6 +28,8 @@ public class Article {
     private Integer viewCount;
     /** 点赞次数（冗余计数） */
     private Integer likeCount;
+    /** 收藏次数（冗余计数，与 like_count 对称） */
+    private Integer collectCount;
     /** 评论次数（冗余计数） */
     private Integer commentCount;
     /** 创建时间 */
@@ -41,4 +43,8 @@ public class Article {
     private String authorNickname;
     /** 作者头像 —— 同上，非表字段 */
     private String authorAvatar;
+    /** 当前登录用户是否已点赞 —— 非表字段，仅详情接口按当前用户填 */
+    private Boolean liked;
+    /** 当前登录用户是否已收藏 —— 非表字段，仅详情接口按当前用户填 */
+    private Boolean collected;
 }
