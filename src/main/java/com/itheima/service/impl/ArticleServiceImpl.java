@@ -102,6 +102,22 @@ public class ArticleServiceImpl implements ArticleService {
         return article;
     }
 
+    /**
+     * 编辑预填：返回完整文章（含 content），且不增加浏览量。
+     * 权限与写操作一致（作者本人或管理员）；无权限时与「不存在」回同一条模糊错误。
+     */
+    @Override
+    public Article getForEdit(Long id) {
+        Article article = articleMapper.findById(id);
+        if (article == null) {
+            throw new BusinessException("文章不存在");
+        }
+        if (!article.getUserId().equals(ThreadLocalUtils.getUserId()) && !isAdmin()) {
+            throw new BusinessException("文章不存在");
+        }
+        return article;
+    }
+
     @Override
     public void delete(Long id) {
         int rows;

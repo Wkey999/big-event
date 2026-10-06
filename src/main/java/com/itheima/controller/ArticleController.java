@@ -42,6 +42,16 @@ public class ArticleController {
         return Result.success(articleService.getById(id));
     }
 
+    /**
+     * 编辑预填：返回完整正文（含 content），且不增加浏览量。
+     * 列表接口已收窄列不再返回 content，编辑弹窗靠这个接口回填——
+     * 不能复用 /detail：那个接口每调一次浏览量 +1，作者编辑自己的文章会把自己的浏览量刷高。
+     */
+    @GetMapping("/edit/{id}")
+    public Result<Article> editDetail(@PathVariable Long id) {
+        return Result.success(articleService.getForEdit(id));
+    }
+
     @DeleteMapping("/delete/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         articleService.delete(id);

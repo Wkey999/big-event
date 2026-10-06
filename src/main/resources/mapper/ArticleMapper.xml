@@ -4,8 +4,15 @@
 
     <!-- 全站共享后信息流里会出现别人的文章，列表必须带上真实作者（昵称/头像），
          否则前端只能拿当前登录用户去填，每张卡片都显示成浏览者自己 -->
+    <!-- 卡片字段收窄：列表绝不查 content(TEXT)。
+         信息流一页 8 条 = 8 篇完整富文本正文的无用传输，叠加分页参数曾是无界时直接成 P0。
+         需要正文的两条路径：/article/detail/{id}（阅读，浏览量 +1）、
+         /article/edit/{id}（编辑预填，不计数） -->
     <select id="findByCondition" resultType="com.itheima.pojo.Article">
-        SELECT a.*, u.nickname AS author_nickname, u.avatar AS author_avatar
+        SELECT a.id, a.title, a.cover_img, a.summary, a.user_id, a.category_id,
+               a.state, a.view_count, a.like_count, a.comment_count,
+               a.create_time, a.update_time,
+               u.nickname AS author_nickname, u.avatar AS author_avatar
         FROM article a
         LEFT JOIN user u ON u.id = a.user_id
         WHERE a.deleted = 0
@@ -27,7 +34,9 @@
         <if test="categoryId != null">
             AND a.category_id = #{categoryId}
         </if>
-        ORDER BY a.create_time DESC
+        <!-- create_time 只有秒级精度，同一秒发布的多篇会并列，缺 id tiebreaker 时分页
+             会出现跨页重复/漏行（前端再按 id 去重就会让「加载完」判定永远不成立） -->
+        ORDER BY a.create_time DESC, a.id DESC
         LIMIT #{offset}, #{pageSize}
     </select>
 
