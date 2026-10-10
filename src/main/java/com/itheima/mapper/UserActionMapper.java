@@ -1,6 +1,10 @@
 package com.itheima.mapper;
 
+import com.itheima.pojo.CategoryStat;
 import org.apache.ibatis.annotations.*;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Mapper
 public interface UserActionMapper {
@@ -33,4 +37,15 @@ public interface UserActionMapper {
                @Param("targetId") Long targetId,
                @Param("targetType") Integer targetType,
                @Param("actionType") Integer actionType);
+
+    /**
+     * 阶段 B'：按频道聚合近 N 天的点赞+收藏（画像里比浏览更高权重的信号）。
+     * 故意不过滤 a.deleted：互动是历史事实，文章后来被删不代表当时的兴趣不算数。
+     */
+    @Select("SELECT a.category_id AS categoryId, COUNT(*) AS actions " +
+            "FROM user_action ua JOIN article a ON a.id = ua.target_id " +
+            "WHERE ua.user_id = #{userId} AND ua.target_type = 1 AND ua.create_time >= #{since} " +
+            "AND a.category_id IS NOT NULL " +
+            "GROUP BY a.category_id")
+    List<CategoryStat> actionStatsByCategory(@Param("userId") Long userId, @Param("since") LocalDateTime since);
 }

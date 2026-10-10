@@ -174,3 +174,34 @@ CREATE TABLE `browse_log` (
   INDEX `idx_user_time` (`user_id`, `create_time`),
   INDEX `idx_article` (`article_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='浏览行为日志（推荐信号来源）';
+
+-- ============================================================
+-- 10. 用户偏好画像主表（阶段 B' 规则画像；阶段 B 由 LLM 归纳覆盖同一张表）
+-- 设计取舍：权重明细独立成子表而不是 JSON 列 —— 重排要按 categoryId 取权重，
+--           子表天然按 (user_id, category_id) 索引，也省掉 MyBatis TypeHandler。
+-- ============================================================
+DROP TABLE IF EXISTS `user_profile`;
+CREATE TABLE `user_profile` (
+  `user_id`      bigint unsigned NOT NULL COMMENT '用户ID（一人一行）',
+  `active_hours` varchar(64)     NOT NULL DEFAULT '' COMMENT '活跃小时，逗号分隔（降序前3个）',
+  `source`       varchar(16)     NOT NULL DEFAULT 'rule' COMMENT '画像来源：rule-规则统计 llm-大模型归纳',
+  `sample_size`  int             NOT NULL DEFAULT 0 COMMENT '参与统计的行为条数（置信度参考）',
+  `generated_at` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '生成时间',
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户偏好画像（推荐重排的输入）';
+
+-- ============================================================
+-- 11. 画像-频道权重明细
+-- ============================================================
+DROP TABLE IF EXISTS `user_profile_interest`;
+CREATE TABLE `user_profile_interest` (
+  `user_id`       bigint unsigned NOT NULL COMMENT '用户ID',
+  `category_id`   bigint unsigned NOT NULL COMMENT '频道ID',
+  `category_name` varchar(30)     NOT NULL DEFAULT '' COMMENT '频道名快照（展示用，免JOIN）',
+  `weight`        decimal(6,4)    NOT NULL DEFAULT 0 COMMENT '归一化权重（0~1，总和≈1）',
+  `pv`            int             NOT NULL DEFAULT 0 COMMENT '近7天浏览量',
+  `avg_dwell_ms`  int             NOT NULL DEFAULT 0 COMMENT '平均停留毫秒',
+  `actions`       int             NOT NULL DEFAULT 0 COMMENT '点赞+收藏数（高权重信号）',
+  PRIMARY KEY (`user_id`, `category_id`),
+  INDEX `idx_user_weight` (`user_id`, `weight`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='画像-频道权重明细';

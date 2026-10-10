@@ -1,8 +1,10 @@
 package com.itheima.mapper;
 
+import com.itheima.pojo.CategoryStat;
 import org.apache.ibatis.annotations.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Mapper
 public interface BrowseLogMapper {
@@ -31,4 +33,28 @@ public interface BrowseLogMapper {
                @Param("articleId") Long articleId,
                @Param("categoryId") Long categoryId,
                @Param("dwellMs") Integer dwellMs);
+
+    // ---- 阶段 B' 规则画像的聚合查询 ----
+
+    /**
+     * 按频道聚合近 N 天浏览。未分类文章（category_id 为 NULL）不参与画像：
+     * 它归不到任何频道，混进来只会稀释权重。
+     */
+    @Select("SELECT l.category_id AS categoryId, c.category_name AS categoryName, " +
+            "COUNT(*) AS pv, ROUND(AVG(l.dwell_ms)) AS avgDwellMs " +
+            "FROM browse_log l LEFT JOIN category c ON c.id = l.category_id " +
+            "WHERE l.user_id = #{userId} AND l.create_time >= #{since} AND l.category_id IS NOT NULL " +
+            "GROUP BY l.category_id, c.category_name")
+    List<CategoryStat> statsByCategory(@Param("userId") Long userId, @Param("since") LocalDateTime since);
+
+    /** 活跃时段：按小时分组，取出现次数最多的前 limit 个（平票按小时升序） */
+    @Select("SELECT HOUR(create_time) FROM browse_log WHERE user_id = #{userId} AND create_time >= #{since} " +
+            "GROUP BY HOUR(create_time) ORDER BY COUNT(*) DESC, HOUR(create_time) ASC LIMIT #{limit}")
+    List<Integer> activeHours(@Param("userId") Long userId,
+                              @Param("since") LocalDateTime since,
+                              @Param("limit") int limit);
+
+    /** 定时任务用：近 N 天有过行为的用户（只给活跃用户生成画像，不做全表扫描） */
+    @Select("SELECT DISTINCT user_id FROM browse_log WHERE create_time >= #{since}")
+    List<Long> activeUserIds(@Param("since") LocalDateTime since);
 }
