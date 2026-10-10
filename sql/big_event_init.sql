@@ -40,9 +40,12 @@ CREATE TABLE `category` (
   `create_time`   datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time`   datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted`       tinyint         NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删 1-已删',
+  `active_category_name` varchar(30) GENERATED ALWAYS AS (
+    CASE WHEN `deleted` = 0 THEN `category_name` ELSE NULL END
+  ) STORED COMMENT '仅活动频道参与全站唯一约束',
   PRIMARY KEY (`id`),
   INDEX `idx_user_id` (`user_id`),
-  UNIQUE INDEX `uk_user_category` (`user_id`, `category_name`, `deleted`)
+  UNIQUE INDEX `uk_category_name` (`active_category_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章分类表';
 
 -- ============================================================

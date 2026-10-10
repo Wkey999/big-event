@@ -15,26 +15,27 @@ public interface ArticleMapper {
 
     @Update("UPDATE article SET title = #{title}, content = #{content}, cover_img = #{coverImg}, " +
             "summary = #{summary}, category_id = #{categoryId}, state = #{state}, update_time = NOW() " +
-            "WHERE id = #{id} AND user_id = #{userId}")
+            "WHERE id = #{id} AND user_id = #{userId} AND deleted = 0")
     int update(Article article);
 
     // 管理员更新任意文章：不限制作者，且不改动 user_id（保留原作者）
     @Update("UPDATE article SET title = #{title}, content = #{content}, cover_img = #{coverImg}, " +
             "summary = #{summary}, category_id = #{categoryId}, state = #{state}, update_time = NOW() " +
-            "WHERE id = #{id}")
+            "WHERE id = #{id} AND deleted = 0")
     int updateAny(Article article);
 
     @Select("SELECT * FROM article WHERE id = #{id} AND deleted = 0")
     Article findById(Long id);
 
-    @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id} AND user_id = #{userId}")
+    @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id} AND user_id = #{userId} AND deleted = 0")
     int deleteById(@Param("id") Long id, @Param("userId") Long userId);
 
     // 管理员删除任意文章：不限制作者
-    @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id}")
+    @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id} AND deleted = 0")
     int deleteByIdAny(Long id);
 
-    @Select("SELECT count(*) FROM article WHERE category_id = #{categoryId} AND deleted = 0")
+    // 类别删除事务中的当前读：配合 category 行锁，确保能看到事务开始后新提交的文章。
+    @Select("SELECT count(*) FROM article WHERE category_id = #{categoryId} AND deleted = 0 LOCK IN SHARE MODE")
     Long countByCategoryId(Long categoryId);
 
     List<Article> findByCondition(@Param("userId") Long userId,

@@ -10,6 +10,7 @@ import com.itheima.service.CategoryService;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -48,26 +49,38 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Transactional
     public void update(Category category) {
         // 频道制：只有管理员能改名/改配置；分类可被所有人引用
         assertAdmin();
+        if (categoryMapper.findByIdForUpdate(category.getId()) == null) {
+            throw new BusinessException("分类不存在");
+        }
         assertNameAvailable(category.getCategoryName(), category.getId());
         // 之前忽略影响行数：更新不存在/已软删的 id 会静默返回成功，前端误以为改上了
         int rows = categoryMapper.update(category);
-        if (rows == 0) {
+        // MySQL 默认返回 changed rows；字段值完全相同时 rows=0 仍可能是成功，需再判是否存在。
+        if (rows == 0 && categoryMapper.findById(category.getId()) == null) {
             throw new BusinessException("分类不存在");
         }
     }
 
     @Override
+    @Transactional
     public void delete(Long id) {
         // 频道制：只有管理员能删除频道（不限该频道当初由谁创建）
         assertAdmin();
+        if (categoryMapper.findByIdForUpdate(id) == null) {
+            throw new BusinessException("分类不存在");
+        }
         // 名下仍有文章时不允许删除，否则这些文章的分类会失效
         if (articleMapper.countByCategoryId(id) > 0) {
             throw new BusinessException("该分类下仍有文章，请先删除或转移文章");
         }
-        categoryMapper.deleteLogical(id);
+        int rows = categoryMapper.deleteLogical(id);
+        if (rows == 0) {
+            throw new BusinessException("分类不存在");
+        }
     }
 
     /**

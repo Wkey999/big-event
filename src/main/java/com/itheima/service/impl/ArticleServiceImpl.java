@@ -16,6 +16,7 @@ import com.itheima.utils.ActionTypes;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -29,6 +30,7 @@ public class ArticleServiceImpl implements ArticleService {
     private final UserActionMapper userActionMapper;
 
     @Override
+    @Transactional
     public void add(ArticleAddDTO dto) {
         Long userId = ThreadLocalUtils.getUserId();
         assertCategoryExists(dto.getCategoryId());
@@ -44,6 +46,7 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    @Transactional
     public void update(ArticleUpdateDTO dto) {
         Long userId = ThreadLocalUtils.getUserId();
         assertCategoryExists(dto.getCategoryId());
@@ -75,7 +78,8 @@ public class ArticleServiceImpl implements ArticleService {
      * 存在的分类；分类不存在与已软删都会在此被拦下（findById 自带 deleted = 0）。
      */
     private void assertCategoryExists(Long categoryId) {
-        if (categoryMapper.findById(categoryId) == null) {
+        // add/update 在事务中持有频道行锁，与 CategoryService.delete 协调，防止产生孤儿文章。
+        if (categoryMapper.findByIdForUpdate(categoryId) == null) {
             throw new BusinessException("分类不存在");
         }
     }
@@ -183,12 +187,16 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     private Integer parseState(String state) {
-        if ("草稿".equals(state)) {
+        if (state == null || state.isBlank()) {
+            return null;
+        }
+        String normalized = state.trim();
+        if ("草稿".equals(normalized) || "0".equals(normalized)) {
             return 0;
         }
-        if ("已发布".equals(state)) {
+        if ("已发布".equals(normalized) || "1".equals(normalized)) {
             return 1;
         }
-        return null;
+        throw new BusinessException("文章状态仅支持 0/草稿 或 1/已发布");
     }
 }

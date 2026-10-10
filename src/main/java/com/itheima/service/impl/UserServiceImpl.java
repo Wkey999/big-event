@@ -11,6 +11,7 @@ import com.itheima.utils.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +27,7 @@ public class UserServiceImpl implements UserService {
      * @param dto 用户注册信息，包含用户名、密码和确认密码
      */
     @Override
+    @Transactional
     public void register(UserRegisterDTO dto) {
         // 校验两次密码是否一致
         if (!dto.getPassword().equals(dto.getRePassword())) {

@@ -29,13 +29,19 @@ public interface CategoryMapper {
     @Select("SELECT * FROM category WHERE id = #{id} AND deleted = 0")
     Category findById(Long id);
 
+    /**
+     * 写文章关联频道时加行锁，与频道删除事务串行化，避免检查后频道被并发软删除。
+     */
+    @Select("SELECT * FROM category WHERE id = #{id} AND deleted = 0 FOR UPDATE")
+    Category findByIdForUpdate(Long id);
+
     // 传 null 表示该字段不改，保留原值（列是 NOT NULL，不能直接写 null）
     @Update("UPDATE category SET category_name = #{categoryName}, " +
             "sort_order = IFNULL(#{sortOrder,jdbcType=INTEGER}, sort_order), " +
             "status = IFNULL(#{status,jdbcType=INTEGER}, status), " +
-            "update_time = NOW() WHERE id = #{id}")
+            "update_time = NOW() WHERE id = #{id} AND deleted = 0")
     int update(Category category);
 
-    @Update("UPDATE category SET deleted = 1, update_time = NOW() WHERE id = #{id}")
+    @Update("UPDATE category SET deleted = 1, update_time = NOW() WHERE id = #{id} AND deleted = 0")
     int deleteLogical(Long id);
 }

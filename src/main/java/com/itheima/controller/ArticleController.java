@@ -62,8 +62,8 @@ public class ArticleController {
      * 条件分页查询当前用户的文章
      * GET /article/list?pageNum=1&pageSize=5&categoryId=1&state=已发布
      *
-     * 注意：这里的 state 收中文「草稿」「已发布」，而 add/update 的 state 是数字 0/1。
-     * 给 list 传 0/1 会被 parseState 解析成 null，静默退化成「不筛选」，不会报错。
+     * state 为可选筛选条件，支持与新增/修改一致的数字 0/1，也兼容旧前端中文「草稿」「已发布」。
+     * 其他非空值会明确报错，不再静默退化成「不筛选」。
      */
     @GetMapping("/list")
     public Result<PageBean<Article>> list(@RequestParam(defaultValue = "1") Integer pageNum,
