@@ -1,0 +1,17 @@
+# Copy this file to application-llm.yml in the repository root.
+# Keep the real API key in your local ignored file only.
+app:
+  llm:
+    enabled: true
+
+spring:
+  ai:
+    model:
+      chat: openai
+    openai:
+      # OpenAI-compatible endpoint; set URL, key, and model for your provider.
+      base-url: ${LLM_BASE_URL}
+      api-key: ${LLM_API_KEY}
+      chat:
+        options:
+          model: ${LLM_MODEL}

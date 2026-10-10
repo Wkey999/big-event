@@ -9,7 +9,10 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/big_event?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
     username: root
-    # password 见 application-secret.yml
+    # password 见仓库根目录的 application-secret.yml
+    hikari:
+      # 开发/空配置启动时不因 DB 暂不可用而阻止 HTTP 服务启动；DB 请求仍会报错。
+      initialization-fail-timeout: -1
 
 mybatis:
   configuration:

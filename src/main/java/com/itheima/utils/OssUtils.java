@@ -2,6 +2,7 @@ package com.itheima.utils;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
+import com.itheima.exception.BusinessException;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,16 +19,16 @@ import java.io.InputStream;
 @Component
 public class OssUtils {
 
-    @Value("${oss.endpoint}")
+    @Value("${oss.endpoint:}")
     private String endpoint;
 
-    @Value("${oss.bucket-name}")
+    @Value("${oss.bucket-name:}")
     private String bucketName;
 
-    @Value("${oss.access-key-id}")
+    @Value("${oss.access-key-id:}")
     private String accessKeyId;
 
-    @Value("${oss.access-key-secret}")
+    @Value("${oss.access-key-secret:}")
     private String accessKeySecret;
 
     /** 懒加载单例客户端（双重检查锁） */
@@ -58,6 +59,9 @@ public class OssUtils {
      * @return 可直接在浏览器访问的公网 URL
      */
     public String upload(InputStream in, String objectName) {
+        if (endpoint.isBlank() || bucketName.isBlank() || accessKeyId.isBlank() || accessKeySecret.isBlank()) {
+            throw new BusinessException("对象存储尚未配置");
+        }
         client().putObject(bucketName, objectName, in);
         // endpoint 允许带 https:// 前缀配置，拼 URL 时统一剥掉，避免出现 https://bucket.https://... 的畸形地址
         String host = endpoint.replaceFirst("^https?://", "");

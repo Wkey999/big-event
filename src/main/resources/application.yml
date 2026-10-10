@@ -4,10 +4,22 @@ spring:
     active: dev
   config:
     import:
-      # OSS 密钥配置（本地文件，被 .gitignore 排除，需自行创建 application-oss.yml）
-      - optional:classpath:application-oss.yml
-      # JWT 密钥 / 数据库密码（本地文件，被 .gitignore 排除，需自行创建 application-secret.yml）
-      - optional:classpath:application-secret.yml
+      # Secrets stay outside classpath/JAR in ignored files at the repository root.
+      - optional:file:./application-oss.yml
+      - optional:file:./application-secret.yml
+      # 大模型配置/API Key 从项目根目录的 gitignored 外部文件读取，避免进入 classpath/JAR。
+      - optional:file:./application-llm.yml
+  ai:
+    # Starter 1.0.9 enables model autoconfigurations by default; explicitly turn off every
+    # model type. The ignored local application-llm.yml enables chat only when configured.
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
   servlet:
