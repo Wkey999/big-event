@@ -15,9 +15,10 @@ public interface BrowseLogMapper {
      * 走 idx_user_time(user_id, create_time) 索引。
      */
     @Select("SELECT id FROM browse_log WHERE user_id = #{userId} AND article_id = #{articleId} " +
-            "AND create_time >= #{since} ORDER BY id DESC LIMIT 1")
+            "AND `mode` = #{mode} AND create_time >= #{since} ORDER BY id DESC LIMIT 1")
     Long findRecentId(@Param("userId") Long userId,
                       @Param("articleId") Long articleId,
+                      @Param("mode") String mode,
                       @Param("since") LocalDateTime since);
 
     /**
@@ -27,12 +28,13 @@ public interface BrowseLogMapper {
     @Update("UPDATE browse_log SET dwell_ms = GREATEST(dwell_ms, #{dwellMs}) WHERE id = #{id}")
     int updateDwell(@Param("id") Long id, @Param("dwellMs") Integer dwellMs);
 
-    @Insert("INSERT INTO browse_log(user_id, article_id, category_id, dwell_ms) " +
-            "VALUES(#{userId}, #{articleId}, #{categoryId}, #{dwellMs})")
+    @Insert("INSERT INTO browse_log(user_id, article_id, category_id, dwell_ms, `mode`) " +
+            "VALUES(#{userId}, #{articleId}, #{categoryId}, #{dwellMs}, #{mode})")
     int insert(@Param("userId") Long userId,
                @Param("articleId") Long articleId,
                @Param("categoryId") Long categoryId,
-               @Param("dwellMs") Integer dwellMs);
+               @Param("dwellMs") Integer dwellMs,
+               @Param("mode") String mode);
 
     // ---- 阶段 B' 规则画像的聚合查询 ----
 

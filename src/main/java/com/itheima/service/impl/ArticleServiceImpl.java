@@ -10,24 +10,41 @@ import com.itheima.pojo.ArticleAddDTO;
 import com.itheima.pojo.ArticleUpdateDTO;
 import com.itheima.pojo.Category;
 import com.itheima.pojo.PageBean;
+import com.itheima.pojo.ProfileInterest;
 import com.itheima.pojo.User;
+import com.itheima.pojo.UserProfile;
 import com.itheima.service.ArticleService;
+import com.itheima.service.UserProfileService;
 import com.itheima.utils.ActionTypes;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class ArticleServiceImpl implements ArticleService {
 
+    private static final int RECOMMEND_CANDIDATE_LIMIT = 100;
+    private static final int RECOMMEND_RESULT_LIMIT = 30;
+    private static final int MIN_PROFILE_SAMPLE_SIZE = 3;
+    private static final double UNSEEN_CATEGORY_WEIGHT = 0.02;
+    private static final double NEW_ARTICLE_BOOST = 1.5;
+    private static final double TIME_DECAY_HALF_LIFE_HOURS = 24.0 * 7.0;
+
     private final ArticleMapper articleMapper;
     private final CategoryMapper categoryMapper;
     private final UserMapper userMapper;
     private final UserActionMapper userActionMapper;
+    private final UserProfileService userProfileService;
 
     @Override
     @Transactional
@@ -160,7 +177,7 @@ public class ArticleServiceImpl implements ArticleService {
      * 先查总条数，再查当前页数据，封装成 PageBean 返回
      */
     @Override
-    public PageBean<Article> list(Integer pageNum, Integer pageSize, Long categoryId, String state) {
+    public PageBean<Article> list(Integer pageNum, Integer pageSize, Long categoryId, String state, String mode) {
         // 分页参数兜底：pageNum < 1 会算出负 offset 直接撞 SQL 语法错误；
         // pageSize 不设上限时客户端可以传超大值拖垮查询
         if (pageNum == null || pageNum < 1) {
@@ -173,6 +190,16 @@ public class ArticleServiceImpl implements ArticleService {
 
         Long userId = ThreadLocalUtils.getUserId();
         Integer stateInt = parseState(state);
+        String normalizedMode = mode == null || mode.isBlank() ? "latest" : mode.trim().toLowerCase(Locale.ROOT);
+        if (!"latest".equals(normalizedMode) && !"recommend".equals(normalizedMode)) {
+            throw new BusinessException("信息流模式仅支持 latest 或 recommend");
+        }
+        if ("recommend".equals(normalizedMode)) {
+            if (stateInt != null && stateInt != 1) {
+                throw new BusinessException("推荐模式仅支持已发布文章");
+            }
+            return recommend(userId, categoryId);
+        }
 
         // 管理员纵览全站（userId 传 null 即不过滤作者，草稿也可见）；普通用户只看自己的
         Long queryUserId = isAdmin() ? null : userId;
@@ -184,6 +211,52 @@ public class ArticleServiceImpl implements ArticleService {
             items = articleMapper.findByCondition(queryUserId, categoryId, stateInt, offset, pageSize);
         }
         return new PageBean<>(total, items);
+    }
+
+    /**
+     * 推荐模式只对已发布文章取最新 100 条候选，重排后固定返回最多 30 条。
+     * 不在 SQL 分页后做重排，避免高分文章落在后续页导致重复或漏项；pageNum/pageSize 不改变该窗口。
+     */
+    private PageBean<Article> recommend(Long userId, Long categoryId) {
+        Long total = articleMapper.countByCondition(null, categoryId, 1);
+        if (total == null || total == 0) {
+            return new PageBean<>(0L, List.of());
+        }
+
+        List<Article> candidates = articleMapper.findByCondition(
+                null, categoryId, 1, 0, RECOMMEND_CANDIDATE_LIMIT);
+        UserProfile profile = userProfileService.get(userId);
+        if (profile == null || profile.getSampleSize() == null
+                || profile.getSampleSize() < MIN_PROFILE_SAMPLE_SIZE
+                || profile.getInterests() == null || profile.getInterests().isEmpty()) {
+            // 冷启动或样本太少时保留 mapper 的时间倒序，不用不可靠画像制造随机感。
+            return new PageBean<>(total, candidates.stream().limit(RECOMMEND_RESULT_LIMIT).toList());
+        }
+
+        Map<Long, Double> categoryWeights = new HashMap<>();
+        for (ProfileInterest interest : profile.getInterests()) {
+            if (interest.getCategoryId() != null && interest.getWeight() != null) {
+                categoryWeights.put(interest.getCategoryId(), interest.getWeight().doubleValue());
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        candidates.sort(Comparator
+                .comparingDouble((Article article) -> recommendationScore(article, categoryWeights, now)).reversed()
+                .thenComparing(Article::getCreateTime, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(Article::getId, Comparator.nullsLast(Comparator.reverseOrder())));
+        return new PageBean<>(total, candidates.stream().limit(RECOMMEND_RESULT_LIMIT).toList());
+    }
+
+    /** 规则重排：频道兴趣 × 七天半衰期时间衰减 × 平滑热度，24 小时内文章额外获得探索加权。 */
+    private double recommendationScore(Article article, Map<Long, Double> categoryWeights, LocalDateTime now) {
+        double categoryWeight = categoryWeights.getOrDefault(article.getCategoryId(), 0.0);
+        LocalDateTime createdAt = article.getCreateTime() == null ? now : article.getCreateTime();
+        double ageHours = Math.max(0.0, Duration.between(createdAt, now).toMinutes() / 60.0);
+        double timeDecay = Math.exp(-Math.log(2.0) * ageHours / TIME_DECAY_HALF_LIFE_HOURS);
+        double popularity = 1.0 + Math.log1p(Math.max(0, article.getViewCount() == null ? 0 : article.getViewCount()));
+        double freshnessBoost = ageHours <= 24.0 ? NEW_ARTICLE_BOOST : 1.0;
+        return (categoryWeight + UNSEEN_CATEGORY_WEIGHT) * timeDecay * popularity * freshnessBoost;
     }
 
     private Integer parseState(String state) {

@@ -3,13 +3,13 @@ package com.itheima.pojo;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 /**
  * 浏览/曝光上报参数（阶段 A 行为采集）
  *
- * 只信这两个字段：userId 由 token 决定、categoryId 从文章行读取，
- * 都不接受客户端传入——埋点是推荐系统的信号源，被客户端随意指定就失去意义了。
+ * userId 由 token 决定、categoryId 从文章行读取，都不接受客户端传入；mode 仅作为受限枚举用于统计归因。
  */
 @Data
 public class BrowseLogDTO {
@@ -21,4 +21,8 @@ public class BrowseLogDTO {
     @Min(value = 0, message = "停留时长不合法")
     @Max(value = 300000, message = "停留时长不合法")
     private Integer dwellMs;
+
+    /** 曝光来源；旧客户端缺省时由 service 记为 latest */
+    @Pattern(regexp = "latest|recommend", message = "信息流模式仅支持 latest 或 recommend")
+    private String mode;
 }

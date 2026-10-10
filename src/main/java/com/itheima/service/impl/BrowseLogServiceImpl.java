@@ -38,14 +38,15 @@ public class BrowseLogServiceImpl implements BrowseLogService {
         }
 
         int dwellMs = dto.getDwellMs() == null ? 0 : dto.getDwellMs();
+        String mode = dto.getMode() == null ? "latest" : dto.getMode();
         LocalDateTime since = LocalDateTime.now().minusSeconds(DEDUP_SECONDS);
 
-        Long recentId = browseLogMapper.findRecentId(userId, article.getId(), since);
+        Long recentId = browseLogMapper.findRecentId(userId, article.getId(), mode, since);
         if (recentId != null) {
             browseLogMapper.updateDwell(recentId, dwellMs);
             return;
         }
-        browseLogMapper.insert(userId, article.getId(), article.getCategoryId(), dwellMs);
+        browseLogMapper.insert(userId, article.getId(), article.getCategoryId(), dwellMs, mode);
     }
 
     /** 已发布任何人都能看；草稿只有作者本人和管理员能看 */

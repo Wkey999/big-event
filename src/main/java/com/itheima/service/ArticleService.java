@@ -22,5 +22,5 @@ public interface ArticleService {
 
     void delete(Long id);
 
-    PageBean<Article> list(Integer pageNum, Integer pageSize, Long categoryId, String state);
+    PageBean<Article> list(Integer pageNum, Integer pageSize, Long categoryId, String state, String mode);
 }
