@@ -1,6 +1,7 @@
 package com.itheima.mapper;
 
 import com.itheima.pojo.Article;
+import com.itheima.pojo.ArticleSearchRow;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
@@ -47,6 +48,27 @@ public interface ArticleMapper {
     Long countByCondition(@Param("userId") Long userId,
                           @Param("categoryId") Long categoryId,
                           @Param("state") Integer state);
+
+    /** Agent read-only search: never returns drafts or the full rich-text body. */
+    @Select({
+            "<script>",
+            "SELECT a.id, a.title, a.summary, a.category_id AS categoryId, c.category_name AS categoryName,",
+            "u.nickname AS authorNickname, a.create_time AS publishedAt",
+            "FROM article a",
+            "LEFT JOIN category c ON c.id = a.category_id AND c.deleted = 0",
+            "LEFT JOIN user u ON u.id = a.user_id",
+            "WHERE a.deleted = 0 AND a.state = 1",
+            "<if test='keyword != null and keyword != \"\"'>",
+            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') OR a.summary LIKE CONCAT('%', #{keyword}, '%'))",
+            "</if>",
+            "<if test='categoryId != null'>AND a.category_id = #{categoryId}</if>",
+            "ORDER BY a.create_time DESC, a.id DESC",
+            "LIMIT #{limit}",
+            "</script>"
+    })
+    List<ArticleSearchRow> searchPublished(@Param("keyword") String keyword,
+                                           @Param("categoryId") Long categoryId,
+                                           @Param("limit") int limit);
 
     @Update("UPDATE article SET view_count = view_count + 1 WHERE id = #{id}")
     int incrementViewCount(Long id);
