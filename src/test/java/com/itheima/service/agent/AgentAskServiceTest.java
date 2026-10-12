@@ -3,7 +3,11 @@ package com.itheima.service.agent;
 import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
 import com.itheima.pojo.ArticleSearchRow;
+import com.itheima.service.AskLogService;
 import com.itheima.service.UserProfileService;
+import com.itheima.utils.ThreadLocalUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import com.itheima.pojo.AskResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,12 +37,24 @@ class AgentAskServiceTest {
     private CategoryMapper categoryMapper;
     @Mock
     private UserProfileService userProfileService;
+    @Mock
+    private AskLogService askLogService;
+
+    @BeforeEach
+    void setUserContext() {
+        ThreadLocalUtils.setUserId(7L);
+    }
+
+    @AfterEach
+    void clearUserContext() {
+        ThreadLocalUtils.clear();
+    }
 
     @Test
     void responseReferencesComeFromActualToolResultsRatherThanModelText() {
         ArticleTools articleTools = new ArticleTools(articleMapper, categoryMapper);
         ProfileTools profileTools = new ProfileTools(userProfileService);
-        AgentAskService service = new AgentAskService(chatClient, articleTools, profileTools);
+        AgentAskService service = new AgentAskService(chatClient, articleTools, profileTools, askLogService);
         ArticleSearchRow result = new ArticleSearchRow();
         result.setId(41L);
         result.setTitle("Spring engineering");
@@ -60,5 +76,9 @@ class AgentAskServiceTest {
 
         assertThat(askResponse.answer()).contains("999");
         assertThat(askResponse.references()).extracting(reference -> reference.id()).containsExactly(41L);
+        org.mockito.Mockito.verify(askLogService).record(org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.eq("find Spring articles"), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.eq(true));
     }
 }

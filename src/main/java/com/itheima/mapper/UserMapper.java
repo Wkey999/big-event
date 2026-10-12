@@ -3,6 +3,8 @@ package com.itheima.mapper;
 import com.itheima.pojo.User;
 import org.apache.ibatis.annotations.*;
 
+import java.util.List;
+
 @Mapper
 public interface UserMapper {
 
@@ -15,6 +17,22 @@ public interface UserMapper {
 
     @Select("SELECT * FROM user WHERE id = #{id} AND deleted = 0")
     User findById(Long id);
+
+    @Select("SELECT * FROM user WHERE id = #{id} AND deleted = 0 FOR UPDATE")
+    User findByIdForUpdate(Long id);
+
+    /** Lock active administrator rows in stable order before a role demotion. */
+    @Select("SELECT id FROM user WHERE role = 1 AND deleted = 0 ORDER BY id FOR UPDATE")
+    List<Long> lockActiveAdminIds();
+
+    @Select("SELECT COUNT(*) FROM user WHERE role = 1 AND deleted = 0")
+    long countActiveAdmins();
+
+    @Update("UPDATE user SET role = #{role}, update_time = NOW() WHERE id = #{id} AND deleted = 0")
+    int updateRole(@Param("id") Long id, @Param("role") Integer role);
+
+    @Update("UPDATE user SET status = #{status}, update_time = NOW() WHERE id = #{id} AND deleted = 0")
+    int updateStatus(@Param("id") Long id, @Param("status") Integer status);
 
     @Update("<script>" +
             "UPDATE user SET update_time = NOW()" +

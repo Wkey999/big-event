@@ -35,6 +35,9 @@ public interface ArticleMapper {
     @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id} AND deleted = 0")
     int deleteByIdAny(Long id);
 
+    @Update("UPDATE article SET state = #{state}, update_time = NOW() WHERE id = #{id} AND deleted = 0")
+    int updateStateAny(@Param("id") Long id, @Param("state") Integer state);
+
     // 类别删除事务中的当前读：配合 category 行锁，确保能看到事务开始后新提交的文章。
     @Select("SELECT count(*) FROM article WHERE category_id = #{categoryId} AND deleted = 0 LOCK IN SHARE MODE")
     Long countByCategoryId(Long categoryId);

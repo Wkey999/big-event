@@ -55,6 +55,9 @@ public class UserServiceImpl implements UserService {
         if (user.getStatus() == 0) {
             throw new BusinessException("账号已被禁用");
         }
+        if (!Integer.valueOf(1).equals(user.getLoginEnabled())) {
+            throw new BusinessException("用户名或密码错误");
+        }
         return jwtUtils.generateToken(user.getId(), user.getUsername());
     }
 

@@ -19,7 +19,9 @@ CREATE TABLE `user` (
   `email`       varchar(100)    NOT NULL DEFAULT '' COMMENT '邮箱',
   `avatar`      varchar(255)    NOT NULL DEFAULT '' COMMENT '头像URL',
   `role`        tinyint         NOT NULL DEFAULT 0 COMMENT '角色：0-普通用户 1-管理员',
+  `user_type`   tinyint         NOT NULL DEFAULT 0 COMMENT '用户类型：0-人类 1-机器作者',
   `status`      tinyint         NOT NULL DEFAULT 1 COMMENT '状态：0-禁用 1-正常',
+  `login_enabled` tinyint       NOT NULL DEFAULT 1 COMMENT '是否允许登录：0-否 1-是',
   `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted`     tinyint         NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删 1-已删',
@@ -210,3 +212,42 @@ CREATE TABLE `user_profile_interest` (
   PRIMARY KEY (`user_id`, `category_id`),
   INDEX `idx_user_weight` (`user_id`, `weight`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='画像-频道权重明细';
+
+-- ============================================================
+-- 12. 普通搜索日志（接口在后续批次接入）
+-- ============================================================
+DROP TABLE IF EXISTS `search_log`;
+CREATE TABLE `search_log` (
+  `id`           bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id`      bigint unsigned NOT NULL COMMENT '搜索用户',
+  `keyword`      varchar(100)    NOT NULL DEFAULT '' COMMENT '关键词',
+  `category_id`  bigint unsigned          DEFAULT NULL,
+  `time_range`   varchar(16)     NOT NULL DEFAULT 'all' COMMENT 'all/1d/7d/30d',
+  `result_count` int             NOT NULL DEFAULT 0,
+  `elapsed_ms`   int             NOT NULL DEFAULT 0,
+  `create_time`  datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_user_time` (`user_id`, `create_time`),
+  INDEX `idx_keyword` (`keyword`),
+  INDEX `idx_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='普通搜索日志';
+
+-- ============================================================
+-- 13. AI 问答日志（只存用户问题与统计字段，不存系统提示词/模型完整响应）
+-- ============================================================
+DROP TABLE IF EXISTS `ask_log`;
+CREATE TABLE `ask_log` (
+  `id`              bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id`         bigint unsigned NOT NULL,
+  `question`        varchar(200)    NOT NULL DEFAULT '' COMMENT '用户问题（最多200字）',
+  `answer_len`      int             NOT NULL DEFAULT 0,
+  `reference_count` int             NOT NULL DEFAULT 0,
+  `elapsed_ms`      int             NOT NULL DEFAULT 0,
+  `ttft_ms`         int             NOT NULL DEFAULT 0 COMMENT '首字延迟，未知填0',
+  `model`           varchar(64)     NOT NULL DEFAULT '',
+  `success`         tinyint         NOT NULL DEFAULT 1,
+  `create_time`     datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_user_time` (`user_id`, `create_time`),
+  INDEX `idx_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI问答日志';

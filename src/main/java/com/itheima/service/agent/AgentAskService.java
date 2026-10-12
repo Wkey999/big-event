@@ -2,6 +2,8 @@ package com.itheima.service.agent;
 
 import com.itheima.exception.BusinessException;
 import com.itheima.pojo.AskResponse;
+import com.itheima.service.AskLogService;
+import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -25,11 +27,17 @@ public class AgentAskService {
     private final ChatClient llmChatClient;
     private final ArticleTools articleTools;
     private final ProfileTools profileTools;
+    private final AskLogService askLogService;
 
     public AskResponse ask(String question) {
+        Long userId = ThreadLocalUtils.getUserId();
+        long startedAt = System.nanoTime();
+        String answer = null;
+        int referenceCount = 0;
+        boolean success = false;
         AskReferenceContext.begin();
         try {
-            String answer = llmChatClient.prompt()
+            answer = llmChatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(question)
                     .tools(articleTools, profileTools)
@@ -38,7 +46,10 @@ public class AgentAskService {
             if (answer == null || answer.isBlank()) {
                 throw new BusinessException("智能问答暂未生成有效回答，请稍后重试");
             }
-            return new AskResponse(answer, AskReferenceContext.snapshot());
+            var references = AskReferenceContext.snapshot();
+            referenceCount = references.size();
+            success = true;
+            return new AskResponse(answer, references);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -46,6 +57,9 @@ public class AgentAskService {
             log.warn("Agent 问答调用失败，异常类型={}", e.getClass().getSimpleName());
             throw new BusinessException("智能问答服务暂不可用，请稍后重试");
         } finally {
+            long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
+            askLogService.record(userId, question, answer == null ? 0 : answer.length(), referenceCount,
+                    elapsedMs, success);
             AskReferenceContext.clear();
         }
     }

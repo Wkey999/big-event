@@ -1,5 +1,6 @@
 package com.itheima.pojo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -22,8 +23,14 @@ public class User {
     private String avatar;
     /** 角色：0-普通用户 1-管理员 */
     private Integer role;
+    /** 用户类型：0-人类 1-机器作者；仅后台使用，不改变旧接口响应。 */
+    @JsonIgnore
+    private Integer userType;
     /** 状态：0-禁用 1-正常 */
     private Integer status;
+    /** 登录开关：0-不可登录 1-可登录；仅后台使用。 */
+    @JsonIgnore
+    private Integer loginEnabled;
     /** 创建时间 */
     private LocalDateTime createTime;
     /** 更新时间 */
