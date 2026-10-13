@@ -174,7 +174,7 @@ CREATE TABLE `browse_log` (
   `article_id`  bigint unsigned NOT NULL COMMENT '文章ID',
   `category_id` bigint unsigned          DEFAULT NULL COMMENT '频道ID（冗余，聚合免JOIN；文章可未分类）',
   `dwell_ms`    int             NOT NULL DEFAULT 0 COMMENT '停留毫秒，0=仅曝光',
-  `mode`        varchar(16)     NOT NULL DEFAULT 'latest' COMMENT '曝光来源：latest/recommend',
+  `mode`        varchar(16)     NOT NULL DEFAULT 'latest' COMMENT '曝光来源：latest/recommend/search/ask',
   `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
   INDEX `idx_user_time` (`user_id`, `create_time`),

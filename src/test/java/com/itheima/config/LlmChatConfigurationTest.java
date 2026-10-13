@@ -1,6 +1,7 @@
 package com.itheima.config;
 
 import com.itheima.service.LlmChatService;
+import com.itheima.controller.ArticleAskController;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
@@ -17,7 +18,7 @@ class LlmChatConfigurationTest {
             .withConfiguration(AutoConfigurations.of(
                     OpenAiChatAutoConfiguration.class,
                     ChatClientAutoConfiguration.class))
-            .withUserConfiguration(LlmChatConfiguration.class, LlmChatService.class);
+            .withUserConfiguration(LlmChatConfiguration.class, LlmChatService.class, ArticleAskController.class);
 
     @Test
     void leavesLlmBeansDisabledWhenLocalConfigurationIsAbsent() {
@@ -26,6 +27,7 @@ class LlmChatConfigurationTest {
             assertThat(context).doesNotHaveBean(LlmChatService.class);
             assertThat(context).doesNotHaveBean(ChatClient.class);
             assertThat(context).doesNotHaveBean(ChatModel.class);
+            assertThat(context).hasSingleBean(ArticleAskController.class);
         });
     }
 }

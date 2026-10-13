@@ -10,6 +10,7 @@ import com.itheima.pojo.ArticleUpdateDTO;
 import com.itheima.pojo.PageBean;
 import com.itheima.service.AdminArticleService;
 import com.itheima.service.ArticleService;
+import com.itheima.utils.LikeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +31,7 @@ public class AdminArticleServiceImpl implements AdminArticleService {
     @Override
     public PageBean<Article> list(Integer pageNum, Integer pageSize, Integer state, Long authorId,
                                   Long categoryId, String keyword) {
-        int safePage = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int safePage = pageNum == null || pageNum < 1 ? 1 : Math.min(pageNum, 100_000);
         int safeSize = pageSize == null || pageSize < 1 ? 10 : Math.min(pageSize, MAX_PAGE_SIZE);
         if (state != null && state != 0 && state != 1) {
             throw new BusinessException("文章状态只能是0或1");
@@ -39,11 +40,12 @@ public class AdminArticleServiceImpl implements AdminArticleService {
         if (safeKeyword != null && safeKeyword.length() > 100) {
             safeKeyword = safeKeyword.substring(0, 100);
         }
-        Long total = adminMapper.countAdminArticles(state, authorId, categoryId, safeKeyword);
+        String sqlKeyword = safeKeyword == null ? null : LikeUtils.escape(safeKeyword);
+        Long total = adminMapper.countAdminArticles(state, authorId, categoryId, sqlKeyword);
         List<AdminArticleListItem> rows = total == null || total == 0
                 ? List.of()
-                : adminMapper.findAdminArticles(state, authorId, categoryId, safeKeyword,
-                        Math.multiplyExact(safePage - 1, safeSize), safeSize);
+                : adminMapper.findAdminArticles(state, authorId, categoryId, sqlKeyword,
+                        pageOffset(safePage, safeSize), safeSize);
         List<Article> items = new ArrayList<>(rows);
         return new PageBean<>(total == null ? 0L : total, items);
     }
@@ -88,5 +90,10 @@ public class AdminArticleServiceImpl implements AdminArticleService {
             throw new BusinessException("文章不存在");
         }
         articleMapper.updateStateAny(id, state);
+    }
+
+    private static int pageOffset(int page, int pageSize) {
+        long offset = (long) (page - 1) * pageSize;
+        return (int) Math.min(offset, Integer.MAX_VALUE);
     }
 }

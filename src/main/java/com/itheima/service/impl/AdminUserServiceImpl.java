@@ -7,6 +7,7 @@ import com.itheima.pojo.AdminUserRow;
 import com.itheima.pojo.PageBean;
 import com.itheima.pojo.User;
 import com.itheima.service.AdminUserService;
+import com.itheima.utils.LikeUtils;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,7 +27,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     public PageBean<AdminUserRow> list(Integer pageNum, Integer pageSize, String keyword,
                                        Integer role, Integer userType) {
-        int safePage = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int safePage = pageNum == null || pageNum < 1 ? 1 : Math.min(pageNum, 100_000);
         int safeSize = pageSize == null || pageSize < 1 ? 10 : Math.min(pageSize, MAX_PAGE_SIZE);
         validateBinary(role, "用户角色");
         validateBinary(userType, "用户类型");
@@ -34,11 +35,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (safeKeyword != null && safeKeyword.length() > 100) {
             safeKeyword = safeKeyword.substring(0, 100);
         }
-        Long total = adminMapper.countAdminUsers(safeKeyword, role, userType);
+        String sqlKeyword = safeKeyword == null ? null : LikeUtils.escape(safeKeyword);
+        Long total = adminMapper.countAdminUsers(sqlKeyword, role, userType);
         List<AdminUserRow> items = total == null || total == 0
                 ? List.of()
-                : adminMapper.findAdminUsers(safeKeyword, role, userType,
-                        Math.multiplyExact(safePage - 1, safeSize), safeSize);
+                : adminMapper.findAdminUsers(sqlKeyword, role, userType,
+                        pageOffset(safePage, safeSize), safeSize);
         return new PageBean<>(total == null ? 0L : total, items);
     }
 
@@ -97,5 +99,10 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (value != null && value != 0 && value != 1) {
             throw new BusinessException(label + "只能是0或1");
         }
+    }
+
+    private static int pageOffset(int page, int pageSize) {
+        long offset = (long) (page - 1) * pageSize;
+        return (int) Math.min(offset, Integer.MAX_VALUE);
     }
 }

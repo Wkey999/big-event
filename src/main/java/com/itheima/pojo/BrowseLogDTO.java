@@ -23,6 +23,6 @@ public class BrowseLogDTO {
     private Integer dwellMs;
 
     /** 曝光来源；旧客户端缺省时由 service 记为 latest */
-    @Pattern(regexp = "latest|recommend", message = "信息流模式仅支持 latest 或 recommend")
+    @Pattern(regexp = "latest|recommend|search|ask", message = "信息流模式仅支持 latest/recommend/search/ask")
     private String mode;
 }

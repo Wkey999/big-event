@@ -55,23 +55,50 @@ public interface ArticleMapper {
     /** Agent read-only search: never returns drafts or the full rich-text body. */
     @Select({
             "<script>",
-            "SELECT a.id, a.title, a.summary, a.category_id AS categoryId, c.category_name AS categoryName,",
-            "u.nickname AS authorNickname, a.create_time AS publishedAt",
+            "SELECT a.id, a.title, a.summary, a.cover_img AS coverImg, a.view_count AS viewCount,",
+            "a.like_count AS likeCount, a.collect_count AS collectCount, a.category_id AS categoryId,",
+            "c.category_name AS categoryName, u.nickname AS authorNickname, u.avatar AS authorAvatar,",
+            "a.create_time AS publishedAt",
             "FROM article a",
             "LEFT JOIN category c ON c.id = a.category_id AND c.deleted = 0",
             "LEFT JOIN user u ON u.id = a.user_id",
             "WHERE a.deleted = 0 AND a.state = 1",
             "<if test='keyword != null and keyword != \"\"'>",
-            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') OR a.summary LIKE CONCAT('%', #{keyword}, '%'))",
+            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR a.summary LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
             "</if>",
             "<if test='categoryId != null'>AND a.category_id = #{categoryId}</if>",
-            "ORDER BY a.create_time DESC, a.id DESC",
-            "LIMIT #{limit}",
+            "<if test='authorId != null'>AND a.user_id = #{authorId}</if>",
+            "<if test='createdAfter != null'>AND a.create_time &gt;= #{createdAfter}</if>",
+            "<choose>",
+            "<when test='orderBy == \"popular\"'>ORDER BY (a.view_count + a.like_count + a.collect_count) DESC, a.create_time DESC, a.id DESC</when>",
+            "<otherwise>ORDER BY a.create_time DESC, a.id DESC</otherwise>",
+            "</choose>",
+            "LIMIT #{offset}, #{limit}",
             "</script>"
     })
     List<ArticleSearchRow> searchPublished(@Param("keyword") String keyword,
                                            @Param("categoryId") Long categoryId,
+                                           @Param("authorId") Long authorId,
+                                           @Param("createdAfter") java.time.LocalDateTime createdAfter,
+                                           @Param("orderBy") String orderBy,
+                                           @Param("offset") int offset,
                                            @Param("limit") int limit);
+
+    @Select({
+            "<script>",
+            "SELECT COUNT(*) FROM article a WHERE a.deleted = 0 AND a.state = 1",
+            "<if test='keyword != null and keyword != \"\"'>",
+            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR a.summary LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
+            "</if>",
+            "<if test='categoryId != null'>AND a.category_id = #{categoryId}</if>",
+            "<if test='authorId != null'>AND a.user_id = #{authorId}</if>",
+            "<if test='createdAfter != null'>AND a.create_time &gt;= #{createdAfter}</if>",
+            "</script>"
+    })
+    Long countPublishedSearch(@Param("keyword") String keyword,
+                              @Param("categoryId") Long categoryId,
+                              @Param("authorId") Long authorId,
+                              @Param("createdAfter") java.time.LocalDateTime createdAfter);
 
     @Update("UPDATE article SET view_count = view_count + 1 WHERE id = #{id}")
     int incrementViewCount(Long id);

@@ -25,7 +25,7 @@ public interface AdminMapper {
             "<if test='authorId != null'>AND a.user_id = #{authorId}</if>",
             "<if test='categoryId != null'>AND a.category_id = #{categoryId}</if>",
             "<if test='keyword != null and keyword != \"\"'>",
-            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') OR a.summary LIKE CONCAT('%', #{keyword}, '%'))",
+            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR a.summary LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
             "</if>",
             "ORDER BY a.create_time DESC, a.id DESC LIMIT #{offset}, #{pageSize}",
             "</script>"
@@ -44,7 +44,7 @@ public interface AdminMapper {
             "<if test='authorId != null'>AND a.user_id = #{authorId}</if>",
             "<if test='categoryId != null'>AND a.category_id = #{categoryId}</if>",
             "<if test='keyword != null and keyword != \"\"'>",
-            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') OR a.summary LIKE CONCAT('%', #{keyword}, '%'))",
+            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR a.summary LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
             "</if>",
             "</script>"
     })
@@ -59,7 +59,7 @@ public interface AdminMapper {
             "u.status, u.login_enabled AS loginEnabled, u.create_time AS createTime",
             "FROM user u WHERE u.deleted = 0",
             "<if test='keyword != null and keyword != \"\"'>",
-            "AND (u.username LIKE CONCAT('%', #{keyword}, '%') OR u.nickname LIKE CONCAT('%', #{keyword}, '%') OR u.email LIKE CONCAT('%', #{keyword}, '%'))",
+            "AND (u.username LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR u.nickname LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR u.email LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
             "</if>",
             "<if test='role != null'>AND u.role = #{role}</if>",
             "<if test='userType != null'>AND u.user_type = #{userType}</if>",
@@ -76,7 +76,7 @@ public interface AdminMapper {
             "<script>",
             "SELECT COUNT(*) FROM user u WHERE u.deleted = 0",
             "<if test='keyword != null and keyword != \"\"'>",
-            "AND (u.username LIKE CONCAT('%', #{keyword}, '%') OR u.nickname LIKE CONCAT('%', #{keyword}, '%') OR u.email LIKE CONCAT('%', #{keyword}, '%'))",
+            "AND (u.username LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR u.nickname LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR u.email LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
             "</if>",
             "<if test='role != null'>AND u.role = #{role}</if>",
             "<if test='userType != null'>AND u.user_type = #{userType}</if>",

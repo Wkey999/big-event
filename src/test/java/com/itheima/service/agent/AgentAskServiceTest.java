@@ -4,6 +4,7 @@ import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
 import com.itheima.pojo.ArticleSearchRow;
 import com.itheima.service.AskLogService;
+import com.itheima.service.BrowseLogService;
 import com.itheima.service.UserProfileService;
 import com.itheima.utils.ThreadLocalUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -36,6 +37,8 @@ class AgentAskServiceTest {
     @Mock
     private CategoryMapper categoryMapper;
     @Mock
+    private BrowseLogService browseLogService;
+    @Mock
     private UserProfileService userProfileService;
     @Mock
     private AskLogService askLogService;
@@ -52,7 +55,7 @@ class AgentAskServiceTest {
 
     @Test
     void responseReferencesComeFromActualToolResultsRatherThanModelText() {
-        ArticleTools articleTools = new ArticleTools(articleMapper, categoryMapper);
+        ArticleTools articleTools = new ArticleTools(articleMapper, categoryMapper, browseLogService);
         ProfileTools profileTools = new ProfileTools(userProfileService);
         AgentAskService service = new AgentAskService(chatClient, articleTools, profileTools, askLogService);
         ArticleSearchRow result = new ArticleSearchRow();
@@ -65,8 +68,8 @@ class AgentAskServiceTest {
         when(prompt.system(anyString())).thenReturn(prompt);
         when(prompt.user("find Spring articles")).thenReturn(prompt);
         when(prompt.tools(articleTools, profileTools)).thenAnswer(invocation -> {
-            when(articleMapper.searchPublished("Spring", null, 6)).thenReturn(List.of(result));
-            articleTools.queryArticles("Spring", null, 5);
+            when(articleMapper.searchPublished("Spring", null, null, null, "latest", 0, 6)).thenReturn(List.of(result));
+            articleTools.queryArticles("Spring", null, 5, "all", "latest");
             return prompt;
         });
         when(prompt.call()).thenReturn(response);

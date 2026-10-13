@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -67,5 +68,17 @@ class AdminUserServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("不能移除最后一个管理员");
         verify(userMapper, never()).updateRole(7L, 0);
+    }
+
+    @Test
+    void userListEscapesLikeWildcardsAndClampsLargePageOffsets() {
+        AdminUserServiceImpl service = new AdminUserServiceImpl(adminMapper, userMapper);
+        when(adminMapper.countAdminUsers("name\\%\\_", 1, 0)).thenReturn(1L);
+        when(adminMapper.findAdminUsers("name\\%\\_", 1, 0, 9_999_900, 100)).thenReturn(List.of());
+
+        var page = service.list(Integer.MAX_VALUE, 500, "name%_", 1, 0);
+
+        assertThat(page.getTotal()).isEqualTo(1L);
+        verify(adminMapper).findAdminUsers("name\\%\\_", 1, 0, 9_999_900, 100);
     }
 }
