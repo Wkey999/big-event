@@ -10,6 +10,7 @@ import com.itheima.pojo.ArticleUpdateDTO;
 import com.itheima.pojo.PageBean;
 import com.itheima.service.AdminArticleService;
 import com.itheima.service.ArticleService;
+import com.itheima.service.CommunityService;
 import com.itheima.utils.LikeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class AdminArticleServiceImpl implements AdminArticleService {
     private final AdminMapper adminMapper;
     private final ArticleMapper articleMapper;
     private final ArticleService articleService;
+    private final CommunityService communityService;
 
     @Override
     public PageBean<Article> list(Integer pageNum, Integer pageSize, Integer state, Long authorId,
@@ -79,7 +81,9 @@ public class AdminArticleServiceImpl implements AdminArticleService {
         // Already-deleted and unknown IDs share a successful idempotent delete response.
         Article active = articleMapper.findById(id);
         if (active != null) {
-            articleMapper.deleteByIdAny(id);
+            if (articleMapper.deleteByIdAny(id) > 0) {
+                communityService.removeTopicsForDeletedArticle(id);
+            }
         }
     }
 

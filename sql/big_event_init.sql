@@ -106,7 +106,7 @@ CREATE TABLE `article_tag` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文章标签关联表';
 
 -- ============================================================
--- 6. 评论表（支持嵌套回复）
+-- 6. 评论表（两级楼中楼）
 -- ============================================================
 DROP TABLE IF EXISTS `comment`;
 CREATE TABLE `comment` (
@@ -114,7 +114,6 @@ CREATE TABLE `comment` (
   `article_id`  bigint unsigned NOT NULL COMMENT '文章ID',
   `user_id`     bigint unsigned NOT NULL COMMENT '评论人ID',
   `parent_id`   bigint unsigned NOT NULL DEFAULT 0 COMMENT '父评论ID（0=顶级评论）',
-  `reply_user_id` bigint unsigned        DEFAULT NULL COMMENT '被回复人ID',
   `content`     varchar(1000)   NOT NULL COMMENT '评论内容',
   `like_count`  int unsigned    NOT NULL DEFAULT 0 COMMENT '点赞数',
   `status`      tinyint         NOT NULL DEFAULT 1 COMMENT '状态：0-已屏蔽 1-正常',
@@ -251,3 +250,71 @@ CREATE TABLE `ask_log` (
   INDEX `idx_user_time` (`user_id`, `create_time`),
   INDEX `idx_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI问答日志';
+
+-- ============================================================
+-- 14. 社区核心表（与 migration/005_community_core.sql 保持一致）
+-- ============================================================
+DROP TABLE IF EXISTS `post_topic`;
+DROP TABLE IF EXISTS `topic`;
+DROP TABLE IF EXISTS `post_media`;
+DROP TABLE IF EXISTS `user_follow`;
+DROP TABLE IF EXISTS `comment`;
+CREATE TABLE `comment` (
+  `id`          bigint unsigned NOT NULL AUTO_INCREMENT,
+  `article_id`  bigint unsigned NOT NULL,
+  `user_id`     bigint unsigned NOT NULL,
+  `root_id`     bigint unsigned          DEFAULT NULL COMMENT '楼层根评论 id，顶层为 NULL',
+  `parent_id`   bigint unsigned          DEFAULT NULL COMMENT '被回复的评论 id',
+  `content`     varchar(500)    NOT NULL,
+  `like_count`  int unsigned    NOT NULL DEFAULT 0,
+  `reply_count` int unsigned    NOT NULL DEFAULT 0,
+  `state`       tinyint         NOT NULL DEFAULT 1 COMMENT '0-隐藏 1-正常',
+  `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `deleted`     tinyint         NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  INDEX `idx_article_time` (`article_id`, `deleted`, `create_time`),
+  INDEX `idx_root` (`root_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评论';
+
+CREATE TABLE `post_media` (
+  `id`          bigint unsigned NOT NULL AUTO_INCREMENT,
+  `article_id`  bigint unsigned NOT NULL,
+  `url`         varchar(255)    NOT NULL,
+  `media_type`  tinyint         NOT NULL DEFAULT 1 COMMENT '1-图片 2-视频',
+  `sort_order`  int             NOT NULL DEFAULT 0,
+  `width`       int                      DEFAULT NULL,
+  `height`      int                      DEFAULT NULL,
+  `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_article` (`article_id`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='帖子媒体';
+
+CREATE TABLE `topic` (
+  `id`          bigint unsigned NOT NULL AUTO_INCREMENT,
+  `name`        varchar(30)     NOT NULL,
+  `post_count`  int unsigned    NOT NULL DEFAULT 0 COMMENT '冗余计数',
+  `hot_score`   int unsigned    NOT NULL DEFAULT 0 COMMENT '热度分，可定时刷新',
+  `status`      tinyint         NOT NULL DEFAULT 1 COMMENT '0-隐藏 1-正常',
+  `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_name` (`name`),
+  INDEX `idx_hot` (`status`, `hot_score` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='话题';
+
+CREATE TABLE `post_topic` (
+  `article_id`  bigint unsigned NOT NULL,
+  `topic_id`    bigint unsigned NOT NULL,
+  `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`article_id`, `topic_id`),
+  INDEX `idx_topic` (`topic_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='帖子话题关系';
+
+CREATE TABLE `user_follow` (
+  `id`          bigint unsigned NOT NULL AUTO_INCREMENT,
+  `follower_id` bigint unsigned NOT NULL COMMENT '关注者',
+  `followee_id` bigint unsigned NOT NULL COMMENT '被关注者',
+  `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_follow` (`follower_id`, `followee_id`),
+  INDEX `idx_followee` (`followee_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='关注关系';

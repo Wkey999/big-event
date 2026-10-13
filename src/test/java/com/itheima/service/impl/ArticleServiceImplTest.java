@@ -13,6 +13,7 @@ import com.itheima.pojo.ProfileInterest;
 import com.itheima.pojo.User;
 import com.itheima.pojo.UserProfile;
 import com.itheima.service.UserProfileService;
+import com.itheima.service.CommunityService;
 import com.itheima.utils.ThreadLocalUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,13 +53,16 @@ class ArticleServiceImplTest {
     private UserActionMapper userActionMapper;
     @Mock
     private UserProfileService userProfileService;
+    @Mock
+    private CommunityService communityService;
 
     private ArticleServiceImpl service;
 
     @BeforeEach
     void setUp() {
         ThreadLocalUtils.setUserId(USER_ID);
-        service = new ArticleServiceImpl(articleMapper, categoryMapper, userMapper, userActionMapper, userProfileService);
+        service = new ArticleServiceImpl(articleMapper, categoryMapper, userMapper, userActionMapper,
+                userProfileService, communityService);
         User ordinaryUser = new User();
         ordinaryUser.setRole(0);
         lenient().when(userMapper.findById(USER_ID)).thenReturn(ordinaryUser);

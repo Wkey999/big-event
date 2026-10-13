@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 更新文章请求参数
  *
@@ -43,4 +45,12 @@ public class ArticleUpdateDTO {
     @NotNull(message = "文章状态不能为空")
     @InValues(values = {0, 1}, message = "文章状态只能是0-草稿或1-已发布")
     private Integer state;
+
+    /** Optional community media; null leaves existing media unchanged. */
+    @Size(max = 10, message = "媒体最多10项")
+    private List<@jakarta.validation.Valid PostMediaDTO> media;
+
+    /** Optional topic set; null leaves existing topics unchanged. */
+    @Size(max = 5, message = "一篇帖子最多添加5个话题")
+    private List<String> topicNames;
 }

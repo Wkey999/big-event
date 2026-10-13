@@ -103,6 +103,16 @@ public interface ArticleMapper {
     @Update("UPDATE article SET view_count = view_count + 1 WHERE id = #{id}")
     int incrementViewCount(Long id);
 
+    @Update("UPDATE article SET cover_img = #{coverImg}, update_time = NOW() WHERE id = #{id} AND deleted = 0")
+    int updateCoverImg(@Param("id") Long id, @Param("coverImg") String coverImg);
+
+    @Update("UPDATE article SET comment_count = comment_count + 1 WHERE id = #{id} AND deleted = 0")
+    int incrementCommentCount(Long id);
+
+    @Update("UPDATE article SET comment_count = IF(comment_count >= #{count}, comment_count - #{count}, 0) " +
+            "WHERE id = #{id} AND deleted = 0")
+    int decrementCommentCount(@Param("id") Long id, @Param("count") int count);
+
     // ---- 互动冗余计数 ----
     // 都带 deleted = 0：已软删的文章不该再被点赞/收藏改计数（顺带补上写入路径缺 deleted 校验的欠账）
     // 减计数用 IF(...) 兜底：列是 int unsigned，直接 -1 到负数会报错/回绕

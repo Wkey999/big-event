@@ -11,6 +11,9 @@ public final class ActionTypes {
     /** target_type：1-文章 2-评论 3-用户 */
     public static final int TARGET_TYPE_ARTICLE = 1;
 
+    /** target_type：2-评论 */
+    public static final int TARGET_TYPE_COMMENT = 2;
+
     /** action_type：1-点赞 */
     public static final int ACTION_TYPE_LIKE = 1;
 

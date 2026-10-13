@@ -14,6 +14,7 @@ import com.itheima.pojo.ProfileInterest;
 import com.itheima.pojo.User;
 import com.itheima.pojo.UserProfile;
 import com.itheima.service.ArticleService;
+import com.itheima.service.CommunityService;
 import com.itheima.service.UserProfileService;
 import com.itheima.utils.ActionTypes;
 import com.itheima.utils.ThreadLocalUtils;
@@ -45,6 +46,7 @@ public class ArticleServiceImpl implements ArticleService {
     private final UserMapper userMapper;
     private final UserActionMapper userActionMapper;
     private final UserProfileService userProfileService;
+    private final CommunityService communityService;
 
     @Override
     @Transactional
@@ -60,6 +62,7 @@ public class ArticleServiceImpl implements ArticleService {
         article.setState(dto.getState());
         article.setUserId(userId);
         articleMapper.insert(article);
+        communityService.applyOptionalFields(article.getId(), dto.getMedia(), dto.getTopicNames(), article.getCoverImg());
     }
 
     @Override
@@ -88,6 +91,7 @@ public class ArticleServiceImpl implements ArticleService {
         if (rows == 0) {
             throw new BusinessException("更新失败：文章不存在或无权操作");
         }
+        communityService.applyOptionalFields(dto.getId(), dto.getMedia(), dto.getTopicNames(), article.getCoverImg());
     }
 
     /**
@@ -149,6 +153,7 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    @Transactional
     public void delete(Long id) {
         int rows;
         if (isAdmin()) {
@@ -162,6 +167,7 @@ public class ArticleServiceImpl implements ArticleService {
         if (rows == 0) {
             throw new BusinessException("删除失败：文章不存在或无权操作");
         }
+        communityService.removeTopicsForDeletedArticle(id);
     }
 
     /**
