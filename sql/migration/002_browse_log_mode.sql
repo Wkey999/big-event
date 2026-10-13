@@ -2,7 +2,7 @@
 -- 执行前备份数据库；该 ALTER 不删除或重写浏览记录。
 ALTER TABLE browse_log
     ADD COLUMN `mode` VARCHAR(16) NOT NULL DEFAULT 'latest'
-        COMMENT '曝光来源：latest/recommend/search/ask' AFTER dwell_ms,
+        COMMENT '曝光来源：latest/recommend' AFTER dwell_ms,
     ADD INDEX idx_mode_time (`mode`, create_time);
 
 -- 验收：SHOW COLUMNS FROM browse_log LIKE 'mode';
