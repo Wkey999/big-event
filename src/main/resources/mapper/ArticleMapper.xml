@@ -12,9 +12,11 @@
         SELECT a.id, a.title, a.cover_img, a.summary, a.user_id, a.category_id,
                a.state, a.view_count, a.like_count, a.collect_count, a.comment_count,
                a.create_time, a.update_time,
-               u.nickname AS author_nickname, u.avatar AS author_avatar
+               u.nickname AS author_nickname, u.avatar AS author_avatar,
+               s.source_name, s.source_url, s.source_title, s.source_translated_title, s.source_author, s.source_published_at
         FROM article a
         LEFT JOIN user u ON u.id = a.user_id
+        LEFT JOIN article_source s ON s.article_id = a.id
         WHERE a.deleted = 0
         <choose>
             <!-- 已发布：全站共享，任何人可看（首页信息流） -->
@@ -72,8 +74,10 @@
     <select id="findMine" resultType="com.itheima.pojo.Article">
         SELECT a.id, a.title, a.cover_img, a.summary, a.user_id, a.category_id,
                a.state, a.view_count, a.like_count, a.collect_count, a.comment_count,
-               a.create_time, a.update_time, u.nickname AS author_nickname, u.avatar AS author_avatar
+               a.create_time, a.update_time, u.nickname AS author_nickname, u.avatar AS author_avatar,
+               s.source_name, s.source_url, s.source_title, s.source_translated_title, s.source_author, s.source_published_at
         FROM article a LEFT JOIN user u ON u.id = a.user_id
+        LEFT JOIN article_source s ON s.article_id = a.id
         WHERE <include refid="mineConditions"/>
         ORDER BY a.create_time DESC, a.id DESC LIMIT #{offset}, #{pageSize}
     </select>

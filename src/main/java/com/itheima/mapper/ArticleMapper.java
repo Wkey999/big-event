@@ -9,6 +9,8 @@ import java.util.List;
 @Mapper
 public interface ArticleMapper {
 
+    String SOURCE_FIELDS = "s.source_name, s.source_url, s.source_title, s.source_translated_title, s.source_author, s.source_published_at";
+
     @Insert("INSERT INTO article(title, content, cover_img, summary, user_id, category_id, state) " +
             "VALUES(#{title}, #{content}, #{coverImg}, #{summary}, #{userId}, #{categoryId}, #{state})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -25,8 +27,8 @@ public interface ArticleMapper {
             "WHERE id = #{id} AND deleted = 0")
     int updateAny(Article article);
 
-    @Select("SELECT a.*, u.nickname AS author_nickname, u.avatar AS author_avatar " +
-            "FROM article a LEFT JOIN user u ON u.id = a.user_id WHERE a.id = #{id} AND a.deleted = 0")
+    @Select("SELECT a.*, u.nickname AS author_nickname, u.avatar AS author_avatar, " + SOURCE_FIELDS + ", s.source_fetched_at " +
+            "FROM article a LEFT JOIN user u ON u.id = a.user_id LEFT JOIN article_source s ON s.article_id=a.id WHERE a.id = #{id} AND a.deleted = 0")
     Article findById(Long id);
 
     @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id} AND user_id = #{userId} AND deleted = 0")
@@ -66,17 +68,18 @@ public interface ArticleMapper {
             "SELECT a.id, a.title, a.summary, a.cover_img AS coverImg, a.view_count AS viewCount,",
             "a.like_count AS likeCount, a.collect_count AS collectCount, a.category_id AS categoryId,",
             "c.category_name AS categoryName, u.nickname AS authorNickname, u.avatar AS authorAvatar,",
-            "a.create_time AS publishedAt",
+            "CASE WHEN s.article_id IS NOT NULL THEN s.source_published_at ELSE a.create_time END AS publishedAt, " + SOURCE_FIELDS,
             "FROM article a",
             "LEFT JOIN category c ON c.id = a.category_id AND c.deleted = 0",
             "LEFT JOIN user u ON u.id = a.user_id",
+            "LEFT JOIN article_source s ON s.article_id = a.id",
             "WHERE a.deleted = 0 AND a.state = 1",
             "<if test='keyword != null and keyword != \"\"'>",
-            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR a.summary LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
+            "AND (COALESCE(s.source_translated_title,s.source_title,a.title) LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR s.source_title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR a.summary LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
             "</if>",
             "<if test='categoryId != null'>AND a.category_id = #{categoryId}</if>",
             "<if test='authorId != null'>AND a.user_id = #{authorId}</if>",
-            "<if test='createdAfter != null'>AND a.create_time &gt;= #{createdAfter}</if>",
+            "<if test='createdAfter != null'>AND CASE WHEN s.article_id IS NOT NULL THEN s.source_published_at ELSE a.create_time END &gt;= #{createdAfter}</if>",
             "<choose>",
             "<when test='orderBy == \"popular\"'>ORDER BY (a.view_count + a.like_count + a.collect_count) DESC, a.create_time DESC, a.id DESC</when>",
             "<otherwise>ORDER BY a.create_time DESC, a.id DESC</otherwise>",
@@ -94,13 +97,13 @@ public interface ArticleMapper {
 
     @Select({
             "<script>",
-            "SELECT COUNT(*) FROM article a WHERE a.deleted = 0 AND a.state = 1",
+            "SELECT COUNT(*) FROM article a LEFT JOIN article_source s ON s.article_id=a.id WHERE a.deleted = 0 AND a.state = 1",
             "<if test='keyword != null and keyword != \"\"'>",
-            "AND (a.title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR a.summary LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
+            "AND (COALESCE(s.source_translated_title,s.source_title,a.title) LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR s.source_title LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\' OR a.summary LIKE CONCAT('%', #{keyword}, '%') ESCAPE '\\\\')",
             "</if>",
             "<if test='categoryId != null'>AND a.category_id = #{categoryId}</if>",
             "<if test='authorId != null'>AND a.user_id = #{authorId}</if>",
-            "<if test='createdAfter != null'>AND a.create_time &gt;= #{createdAfter}</if>",
+            "<if test='createdAfter != null'>AND CASE WHEN s.article_id IS NOT NULL THEN s.source_published_at ELSE a.create_time END &gt;= #{createdAfter}</if>",
             "</script>"
     })
     Long countPublishedSearch(@Param("keyword") String keyword,

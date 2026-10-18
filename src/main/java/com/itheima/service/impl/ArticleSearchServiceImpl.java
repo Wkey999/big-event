@@ -45,7 +45,11 @@ public class ArticleSearchServiceImpl implements ArticleSearchService {
                 ? List.of()
                 : articleMapper.searchPublished(sqlKeyword, categoryId, authorId, createdAfter,
                         normalizedOrder, offset, safeSize);
-        rows.forEach(row -> addHitMetadata(row, normalizedKeyword));
+        rows.forEach(row -> {
+            if (row.getSourceTranslatedTitle() != null) row.setTitle(row.getSourceTranslatedTitle());
+            else if (row.getSourceTitle() != null) row.setTitle(row.getSourceTitle());
+            addHitMetadata(row, normalizedKeyword);
+        });
         Long userId = ThreadLocalUtils.getUserId();
         searchLogService.record(userId, normalizedKeyword, categoryId, normalizedRange,
                 total == null ? 0 : total, (System.nanoTime() - startedAt) / 1_000_000L);
@@ -60,6 +64,13 @@ public class ArticleSearchServiceImpl implements ArticleSearchService {
         if (titleLower.contains(keywordLower)) {
             row.setHitField("title");
             row.setHitSnippet(snippet(title, titleLower.indexOf(keywordLower), keyword.length()));
+            return;
+        }
+        String originalTitle = plainText(row.getSourceTitle());
+        int originalMatch = originalTitle.toLowerCase(Locale.ROOT).indexOf(keywordLower);
+        if (originalMatch >= 0) {
+            row.setHitField("title");
+            row.setHitSnippet(snippet(originalTitle, originalMatch, keyword.length()));
             return;
         }
         String summaryLower = summary.toLowerCase(Locale.ROOT);

@@ -95,7 +95,8 @@ public class ArticleTools {
     }
 
     private static ArticleReference toReference(ArticleSearchRow row) {
-        return new ArticleReference(row.getId(), row.getTitle(), row.getSummary(), row.getCategoryName(),
-                row.getAuthorNickname(), row.getPublishedAt());
+        String title=row.getSourceTranslatedTitle()!=null?row.getSourceTranslatedTitle():(row.getSourceTitle()==null?row.getTitle():row.getSourceTitle());
+        return new ArticleReference(row.getId(), title, row.getSummary(), row.getCategoryName(),
+                row.getAuthorNickname(), row.getPublishedAt(), row.getSourceName(), row.getSourceUrl(), row.getSourceAuthor());
     }
 }

@@ -38,3 +38,14 @@ jwt:
   expiration: 86400000
   header: Authorization
   prefix: "Bearer "
+
+app:
+  content-feeds:
+    # Requires migration 006. Automatic collection creates pending metadata only.
+    enabled: true
+    interval-ms: 1800000
+    initial-delay-ms: 60000
+    max-new-per-source: 5
+    max-age-days: 30
+    max-new-per-day: 60
+    max-new-per-source-per-day: 10

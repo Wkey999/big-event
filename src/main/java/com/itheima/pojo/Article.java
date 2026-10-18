@@ -47,4 +47,12 @@ public class Article {
     private Boolean liked;
     /** 当前登录用户是否已收藏 —— 非表字段，仅详情接口按当前用户填 */
     private Boolean collected;
+    /** External link metadata; null for community-authored posts. No imported article body. */
+    private String sourceName;
+    private String sourceUrl;
+    private String sourceTitle;
+    private String sourceTranslatedTitle;
+    private String sourceAuthor;
+    private LocalDateTime sourcePublishedAt;
+    private LocalDateTime sourceFetchedAt;
 }

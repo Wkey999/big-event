@@ -9,5 +9,8 @@ public record ArticleReference(
         String summary,
         String categoryName,
         String authorNickname,
-        LocalDateTime publishedAt) {
+        LocalDateTime publishedAt,
+        String sourceName,
+        String sourceUrl,
+        String sourceAuthor) {
 }

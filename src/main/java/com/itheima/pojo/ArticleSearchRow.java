@@ -21,4 +21,10 @@ public class ArticleSearchRow {
     private LocalDateTime publishedAt;
     private String hitField;
     private String hitSnippet;
+    private String sourceName;
+    private String sourceUrl;
+    private String sourceTitle;
+    private String sourceTranslatedTitle;
+    private String sourceAuthor;
+    private LocalDateTime sourcePublishedAt;
 }

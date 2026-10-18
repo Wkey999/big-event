@@ -116,4 +116,16 @@ class ArticleSearchServiceImplTest {
 
         verify(articleMapper).searchPublished(eq("topic"), isNull(), isNull(), isNull(), eq("latest"), eq(999_990), eq(10));
     }
+    @Test
+    void translatedResultShowsChineseAndKeepsOriginalEnglishMatchVisible() {
+        ArticleSearchRow row = new ArticleSearchRow();
+        row.setTitle("Old short title"); row.setSourceTitle("How we automated secure access");
+        row.setSourceTranslatedTitle("如何实现安全访问自动化");
+        when(articleMapper.countPublishedSearch(eq("automated"), isNull(), isNull(), isNull())).thenReturn(1L);
+        when(articleMapper.searchPublished(eq("automated"), isNull(), isNull(), isNull(), eq("latest"), eq(0), eq(10))).thenReturn(List.of(row));
+        var result=service.search("automated",1,10,null,null,"all","latest").getItems().get(0);
+        assertThat(result.getTitle()).isEqualTo("如何实现安全访问自动化");
+        assertThat(result.getHitSnippet()).contains("automated");
+        assertThat(result.getSourceTitle()).isEqualTo("How we automated secure access");
+    }
 }
