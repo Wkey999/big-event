@@ -25,7 +25,7 @@ class ArticleAskControllerTest {
         when(provider.getIfAvailable()).thenReturn(null);
         when(askLogProvider.getIfAvailable()).thenReturn(askLogService);
         ThreadLocalUtils.setUserId(7L);
-        ArticleAskController controller = new ArticleAskController(provider, askLogProvider);
+        ArticleAskController controller = new ArticleAskController(provider, askLogProvider, mock(ObjectProvider.class));
         AskDTO request = new AskDTO();
         request.setQuestion("find a Spring article");
 

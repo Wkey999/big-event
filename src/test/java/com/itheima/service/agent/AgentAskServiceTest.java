@@ -3,6 +3,7 @@ package com.itheima.service.agent;
 import com.itheima.mapper.ArticleMapper;
 import com.itheima.mapper.CategoryMapper;
 import com.itheima.pojo.ArticleSearchRow;
+import com.itheima.pojo.UserAiConfig;
 import com.itheima.service.AskLogService;
 import com.itheima.service.BrowseLogService;
 import com.itheima.service.UserProfileService;
@@ -25,6 +26,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AgentAskServiceTest {
+    @Mock
+    private AiSearchClientRouter factory;
 
     @Mock
     private ChatClient chatClient;
@@ -57,7 +60,9 @@ class AgentAskServiceTest {
     void responseReferencesComeFromActualToolResultsRatherThanModelText() {
         ArticleTools articleTools = new ArticleTools(articleMapper, categoryMapper, browseLogService);
         ProfileTools profileTools = new ProfileTools(userProfileService);
-        AgentAskService service = new AgentAskService(chatClient, articleTools, profileTools, askLogService);
+        AgentAskService service = new AgentAskService(factory, articleTools, profileTools, askLogService);
+        UserAiConfig config = new UserAiConfig();
+        when(factory.create("custom",config)).thenReturn(chatClient);
         ArticleSearchRow result = new ArticleSearchRow();
         result.setId(41L);
         result.setTitle("Spring engineering");
@@ -75,13 +80,13 @@ class AgentAskServiceTest {
         when(prompt.call()).thenReturn(response);
         when(response.content()).thenReturn("Read the real article 41; never cite made-up article 999.");
 
-        AskResponse askResponse = service.ask("find Spring articles");
+        AskResponse askResponse = service.ask("find Spring articles", "custom", config);
 
         assertThat(askResponse.answer()).contains("999");
         assertThat(askResponse.references()).extracting(reference -> reference.id()).containsExactly(41L);
-        org.mockito.Mockito.verify(askLogService).record(org.mockito.ArgumentMatchers.eq(7L),
+        org.mockito.Mockito.verify(askLogService).recordForModel(org.mockito.ArgumentMatchers.eq(7L),
                 org.mockito.ArgumentMatchers.eq("find Spring articles"), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.eq(true));
+                org.mockito.ArgumentMatchers.eq(true),org.mockito.ArgumentMatchers.isNull());
     }
 }

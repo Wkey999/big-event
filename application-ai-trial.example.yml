@@ -1,0 +1,9 @@
+# Copy to application-ai-trial.yml in the repository root; the local copy is gitignored.
+# Create a dedicated DeepSeek key for visitor trials. Do not reuse the translation key.
+app:
+  ai-trial:
+    enabled: ${AI_TRIAL_ENABLED:false}
+    api-key: ${AI_TRIAL_API_KEY:}
+    model: deepseek-flash
+    daily-user-limit: 3
+    daily-site-limit: 100

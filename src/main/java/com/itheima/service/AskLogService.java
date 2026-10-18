@@ -25,13 +25,18 @@ public class AskLogService {
 
     public void record(Long userId, String question, int answerLength, int referenceCount,
                        long elapsedMs, boolean success) {
+        recordForModel(userId,question,answerLength,referenceCount,elapsedMs,success,model);
+    }
+
+    public void recordForModel(Long userId,String question,int answerLength,int referenceCount,
+                               long elapsedMs,boolean success,String usedModel) {
         if (userId == null) {
             return;
         }
         try {
             askLogMapper.insert(userId, redact(question), Math.max(answerLength, 0), Math.max(referenceCount, 0),
                     (int) Math.min(Math.max(elapsedMs, 0), Integer.MAX_VALUE), 0,
-                    model == null ? "" : model, success ? 1 : 0);
+                    usedModel == null ? "" : usedModel.substring(0,Math.min(usedModel.length(),64)), success ? 1 : 0);
         } catch (Exception e) {
             // Logging failure must not change the user-visible answer or expose question contents.
             log.warn("ask_log 写入失败，异常类型={}", e.getClass().getSimpleName());

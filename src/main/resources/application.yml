@@ -9,6 +9,7 @@ spring:
       - optional:file:./application-secret.yml
       # 大模型配置/API Key 从项目根目录的 gitignored 外部文件读取，避免进入 classpath/JAR。
       - optional:file:./application-llm.yml
+      - optional:file:./application-ai-trial.yml
   ai:
     # Starter 1.0.9 enables model autoconfigurations by default; explicitly turn off every
     # model type. The ignored local application-llm.yml enables chat only when configured.
@@ -40,6 +41,16 @@ jwt:
   prefix: "Bearer "
 
 app:
+  ai-trial:
+    # Requires migration 009 and a dedicated trial key, independent of server translation.
+    enabled: ${AI_TRIAL_ENABLED:false}
+    daily-user-limit: 3
+    daily-site-limit: 100
+    model: deepseek-flash
+    api-key: ${AI_TRIAL_API_KEY:}
+  llm:
+    # Legacy server-key probe is private, opt-in and administrator-only.
+    dev-probe-enabled: false
   content-feeds:
     # Requires migration 006. Automatic collection creates pending metadata only.
     enabled: true

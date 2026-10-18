@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public Result<Void> handleNotReadable(HttpMessageNotReadableException e) {
-        log.warn("请求体解析失败: {}", e.getMessage());
+        log.warn("请求体解析失败，异常类型={}", e.getClass().getSimpleName());
         return Result.error("请求体格式错误");
     }
 

@@ -2,18 +2,16 @@ package com.itheima.service.agent;
 
 import com.itheima.exception.BusinessException;
 import com.itheima.pojo.AskResponse;
+import com.itheima.pojo.UserAiConfig;
 import com.itheima.service.AskLogService;
 import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "app.llm", name = "enabled", havingValue = "true")
 public class AgentAskService {
 
     private static final String SYSTEM_PROMPT = """
@@ -28,12 +26,12 @@ public class AgentAskService {
             对链接卡片只能介绍其标题和来源，不得声称已读原文、总结原文观点或编造原文内容；提示用户打开原文阅读。
             """;
 
-    private final ChatClient llmChatClient;
+    private final AiSearchClientRouter clientRouter;
     private final ArticleTools articleTools;
     private final ProfileTools profileTools;
     private final AskLogService askLogService;
 
-    public AskResponse ask(String question) {
+    public AskResponse ask(String question,String mode,UserAiConfig aiConfig) {
         Long userId = ThreadLocalUtils.getUserId();
         long startedAt = System.nanoTime();
         String answer = null;
@@ -41,7 +39,7 @@ public class AgentAskService {
         boolean success = false;
         AskReferenceContext.begin();
         try {
-            answer = llmChatClient.prompt()
+            answer = clientRouter.create(mode,aiConfig).prompt()
                     .system(SYSTEM_PROMPT)
                     .user(question)
                     .tools(articleTools, profileTools)
@@ -62,8 +60,8 @@ public class AgentAskService {
             throw new BusinessException("智能问答服务暂不可用，请稍后重试");
         } finally {
             long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
-            askLogService.record(userId, question, answer == null ? 0 : answer.length(), referenceCount,
-                    elapsedMs, success);
+            askLogService.recordForModel(userId, question, answer == null ? 0 : answer.length(), referenceCount,
+                    elapsedMs, success, clientRouter.modelLabel(mode,aiConfig));
             AskReferenceContext.clear();
         }
     }

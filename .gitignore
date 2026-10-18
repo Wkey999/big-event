@@ -48,3 +48,8 @@ src/main/resources/application-secret*.yml
 !/application-llm.example.yml
 src/main/resources/application-llm*.yml
 !src/main/resources/application-llm.example.yml
+
+### Dedicated visitor trial credentials ###
+/application-ai-trial*.yml
+!/application-ai-trial.example.yml
+src/main/resources/application-ai-trial*.yml

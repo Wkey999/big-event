@@ -13,13 +13,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Development-only connectivity probe. It remains protected by the normal JWT interceptor. */
+/** Explicitly enabled development probe; protected by JWT and administrator checks. */
 @RestController
 @RequestMapping("/dev")
 @RequiredArgsConstructor
 @Validated
 @Profile("dev")
-@ConditionalOnProperty(prefix = "app.llm", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "app.llm", name = {"enabled","dev-probe-enabled"}, havingValue = "true")
 public class DevLlmController {
 
     private final LlmChatService llmChatService;
