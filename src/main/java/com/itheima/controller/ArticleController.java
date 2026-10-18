@@ -17,6 +17,14 @@ public class ArticleController {
 
     private final ArticleService articleService;
 
+    @GetMapping("/mine")
+    public Result<PageBean<Article>> mine(@RequestParam(defaultValue = "1") Integer pageNum,
+                                           @RequestParam(defaultValue = "10") Integer pageSize,
+                                           @RequestParam(required = false) Long categoryId,
+                                           @RequestParam(required = false) String state) {
+        return Result.success(articleService.listMine(pageNum, pageSize, categoryId, state));
+    }
+
     /**
      * 新增文章（带参数校验 + 自定义校验）
      */

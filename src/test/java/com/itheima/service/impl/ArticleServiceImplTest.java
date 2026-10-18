@@ -84,6 +84,19 @@ class ArticleServiceImplTest {
     }
 
     @Test
+    void creatorsPublishedFilterStaysScopedEvenForAdministrators() {
+        User admin = new User();
+        admin.setRole(1);
+        lenient().when(userMapper.findById(USER_ID)).thenReturn(admin);
+        when(articleMapper.countMine(USER_ID, null, 1)).thenReturn(1L);
+        when(articleMapper.findMine(USER_ID, null, 1, 0, 10))
+                .thenReturn(List.of(article(7L, 2L, LocalDateTime.now())));
+        assertThat(service.listMine(1, 10, null, "已发布").getTotal()).isEqualTo(1L);
+        verify(articleMapper).findMine(USER_ID, null, 1, 0, 10);
+        org.mockito.Mockito.verify(articleMapper, org.mockito.Mockito.never()).countByCondition(any(), any(), any());
+    }
+
+    @Test
     void listRejectsUnknownStateInsteadOfSilentlyRemovingFilter() {
         assertThatThrownBy(() -> service.list(1, 5, null, "archived", "latest"))
                 .isInstanceOf(BusinessException.class)

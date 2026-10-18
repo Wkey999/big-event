@@ -278,4 +278,21 @@ public class ArticleServiceImpl implements ArticleService {
         }
         throw new BusinessException("文章状态仅支持 0/草稿 或 1/已发布");
     }
+
+    @Override
+    public PageBean<Article> listMine(Integer pageNum, Integer pageSize, Long categoryId, String state) {
+        Long userId = ThreadLocalUtils.getUserId();
+        if (userId == null) {
+            throw new BusinessException("未登录");
+        }
+        int safePage = pageNum == null ? 1 : Math.max(1, Math.min(pageNum, 100_000));
+        int safeSize = pageSize == null ? 10 : Math.max(1, Math.min(pageSize, 100));
+        Integer stateInt = parseState(state);
+        Long total = articleMapper.countMine(userId, categoryId, stateInt);
+        if (total == null || total == 0) {
+            return new PageBean<>(0L, List.of());
+        }
+        int offset = (safePage - 1) * safeSize;
+        return new PageBean<>(total, articleMapper.findMine(userId, categoryId, stateInt, offset, safeSize));
+    }
 }

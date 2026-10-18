@@ -23,4 +23,7 @@ public interface ArticleService {
     void delete(Long id);
 
     PageBean<Article> list(Integer pageNum, Integer pageSize, Long categoryId, String state, String mode);
+
+    /** Creator workspace: always scoped to the authenticated author, including administrators. */
+    PageBean<Article> listMine(Integer pageNum, Integer pageSize, Long categoryId, String state);
 }

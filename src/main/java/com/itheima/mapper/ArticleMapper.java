@@ -25,7 +25,8 @@ public interface ArticleMapper {
             "WHERE id = #{id} AND deleted = 0")
     int updateAny(Article article);
 
-    @Select("SELECT * FROM article WHERE id = #{id} AND deleted = 0")
+    @Select("SELECT a.*, u.nickname AS author_nickname, u.avatar AS author_avatar " +
+            "FROM article a LEFT JOIN user u ON u.id = a.user_id WHERE a.id = #{id} AND a.deleted = 0")
     Article findById(Long id);
 
     @Update("UPDATE article SET deleted = 1, update_time = NOW() WHERE id = #{id} AND user_id = #{userId} AND deleted = 0")
@@ -51,6 +52,13 @@ public interface ArticleMapper {
     Long countByCondition(@Param("userId") Long userId,
                           @Param("categoryId") Long categoryId,
                           @Param("state") Integer state);
+
+    List<Article> findMine(@Param("userId") Long userId, @Param("categoryId") Long categoryId,
+                           @Param("state") Integer state, @Param("offset") int offset,
+                           @Param("pageSize") int pageSize);
+
+    Long countMine(@Param("userId") Long userId, @Param("categoryId") Long categoryId,
+                   @Param("state") Integer state);
 
     /** Agent read-only search: never returns drafts or the full rich-text body. */
     @Select({
