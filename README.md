@@ -46,7 +46,7 @@
 
 ## 本地运行
 
-AI 搜索现支持个人 API 和限额免费体验：每账号每天 3 次、全站每天 100 次；免费体验需管理员单独配置试用密钥，默认关闭，个人模式不回退使用站主密钥。需执行 `sql/migration/009_ai_trial_quota.sql`，配置方式及验证边界见 [AI 搜索说明](docs/备忘录/15-AI搜索个人API与免费体验.md)。
+AI 搜索现支持个人 API 和限额免费体验：每账号每天 3 次、同一网络默认每天 10 次、全站默认每天 100 次；免费体验需管理员单独配置试用密钥，默认关闭，个人模式不回退使用站主密钥。需执行 `sql/migration/009_ai_trial_quota.sql`，配置方式及验证边界见 [AI 搜索说明](docs/备忘录/15-AI搜索个人API与免费体验.md)。
 
 资讯来源功能还需依次执行增量迁移 `sql/migration/006_content_feeds.sql` 、`sql/migration/007_feed_title_translation.sql` 与 `sql/migration/008_rename_ai_channel.sql`（新库也需在基础表与既有迁移后执行）。新增三张表，兼容 MySQL 5.7，不清空原有数据。
 
@@ -57,7 +57,7 @@ AI 搜索现支持个人 API 和限额免费体验：每账号每天 3 次、全
 #    application-oss.yml     -> oss.endpoint / bucket-name / access-key-id / access-key-secret
 #    application-llm.yml     -> DeepSeek 等 OpenAI 兼容模型的地址 / API Key / 模型名
 # 3. 启动（JDK 21）
-mvn spring-boot:run          # dev profile，端口 8080
+mvn spring-boot:run          # dev profile，端口 8080；也可 PowerShell 执行 ./start-dev.ps1，日志写入 logs/development-server.log
 ```
 
 接口调试示例见 `src/test/http/user-api.http`（IDEA HTTP Client / 导入 Postman）。
@@ -104,3 +104,7 @@ mvn spring-boot:run          # dev profile，端口 8080
 GitHub 待审内容会批量生成中文标题，同时保留英文原题；管理员可补译、核对并修改译名后发布。翻译依赖现有本地大模型配置，失败保留原题，不自动发布。2026-10-19 已补译 8 条待审标题，后端 72 项测试通过，前端构建通过。详见实施说明的中文标题章节。
 
 2026-10-19 多频道扩源：频道现名为 AI/技术热点；体育、电竞来源支持中文翻译与原题对照，审核时预选对应频道。四个新增来源已实际采集成功，仍需人工审核。Maven 本地启动沿用系统代理配置；直接在 IDE 或运行 JAR 时可设置 JVM 参数 -Djava.net.useSystemProxies=true。当前后端 77 项测试、前端构建通过。
+
+## 2026-10-19 验收修复
+
+采集日志需追加执行 sql/migration/010_feed_run_skipped.sql，达上限记录以 success=0、skipped=1 标记。鉴权权限快照缓存 20 秒；平台试用按全站、网络、账号顺序事务校验。修复明细及完整验证记录见 [验收工单](docs/备忘录/16-验收发现与修复工单.md)。运行日志写入 logs/，避免占用 target/。

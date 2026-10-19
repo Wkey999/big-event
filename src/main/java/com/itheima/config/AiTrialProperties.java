@@ -11,6 +11,7 @@ public class AiTrialProperties {
     private boolean enabled = false;
     private int dailyUserLimit = 3;
     private int dailySiteLimit = 100;
+    private int dailyIpLimit = 10;
     private String model = "deepseek-flash";
     private String apiKey = "";
 

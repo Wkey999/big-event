@@ -6,4 +6,5 @@ app:
     api-key: ${AI_TRIAL_API_KEY:}
     model: deepseek-flash
     daily-user-limit: 3
+    daily-ip-limit: 10
     daily-site-limit: 100

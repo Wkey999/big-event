@@ -28,7 +28,7 @@ public interface ContentFeedMapper {
     FeedEntry lockEntry(Long id);
     @Update("UPDATE feed_entry SET status=#{status},article_id=#{articleId},reviewed_by=#{userId},reviewed_at=NOW() WHERE id=#{id} AND status=0")
     int review(@Param("id") Long id,@Param("status") int status,@Param("articleId") Long articleId,@Param("userId") Long userId);
-    @Insert("INSERT INTO feed_run(source_key,started_at,finished_at,scanned,inserted,duplicates,filtered,success,message) VALUES(#{sourceKey},#{startedAt},#{finishedAt},#{scanned},#{inserted},#{duplicates},#{filtered},#{success},#{message})")
+    @Insert("INSERT INTO feed_run(source_key,started_at,finished_at,scanned,inserted,duplicates,filtered,success,skipped,message) VALUES(#{sourceKey},#{startedAt},#{finishedAt},#{scanned},#{inserted},#{duplicates},#{filtered},#{success},#{skipped},#{message})")
     int insertRun(FeedRun run);
     @Select("SELECT * FROM feed_run WHERE source_key=#{source} ORDER BY id DESC LIMIT 1")
     FeedRun latestRun(String source);

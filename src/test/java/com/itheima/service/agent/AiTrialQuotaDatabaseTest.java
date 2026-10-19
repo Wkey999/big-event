@@ -42,7 +42,7 @@ class AiTrialQuotaDatabaseTest {
         assertThat(runRequests(false)).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT used_count FROM ai_trial_daily_usage WHERE usage_date=? AND scope_id='site'",Integer.class,TEST_DATE)).isEqualTo(3);
         var reloaded=new AiTrialQuotaService(context.getBean(AiTrialQuotaMapper.class),properties,Config.CLOCK);
-        assertThat(reloaded.status(900000000001L).remaining()).isZero();
+        assertThat(reloaded.status(900000000001L,"203.0.113.8").remaining()).isZero();
     }
     @Test void concurrentDifferentAccountsCannotExceedSiteAllowance() throws Exception {
         properties.setDailySiteLimit(5);
@@ -57,13 +57,19 @@ class AiTrialQuotaDatabaseTest {
                 final long user=900000000001L+(differentUsers?i:0);
                 futures.add(executor.submit(() -> {
                     ready.countDown(); go.await();
-                    try { service.reserve(user); return true; } catch(BusinessException expected) { return false; }
+                    try { service.reserve(user,"203.0.113.8"); return true; } catch(BusinessException expected) { return false; }
                 }));
             }
             assertThat(ready.await(10,TimeUnit.SECONDS)).isTrue(); go.countDown();
             int successes=0; for(var future:futures) if(future.get(20,TimeUnit.SECONDS)) successes++;
             return successes;
         }
+    }
+    @Test void concurrentAccountsOnSameNetworkCannotExceedIpAllowance() throws Exception {
+        properties.setDailyIpLimit(2);
+        assertThat(runRequests(true)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT used_count FROM ai_trial_daily_usage WHERE usage_date=? AND scope_id=?",Integer.class,TEST_DATE,AiTrialQuotaService.ipScope("203.0.113.8"))).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT used_count FROM ai_trial_daily_usage WHERE usage_date=? AND scope_id='site'",Integer.class,TEST_DATE)).isEqualTo(2);
     }
     @Configuration
     @EnableTransactionManagement(proxyTargetClass=true)

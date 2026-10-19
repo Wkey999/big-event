@@ -13,5 +13,6 @@ public class FeedRun {
     private int duplicates;
     private int filtered;
     private boolean success;
+    private boolean skipped;
     private String message;
 }

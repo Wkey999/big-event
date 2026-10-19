@@ -45,6 +45,7 @@ app:
     # Requires migration 009 and a dedicated trial key, independent of server translation.
     enabled: ${AI_TRIAL_ENABLED:false}
     daily-user-limit: 3
+    daily-ip-limit: 10
     daily-site-limit: 100
     model: deepseek-flash
     api-key: ${AI_TRIAL_API_KEY:}

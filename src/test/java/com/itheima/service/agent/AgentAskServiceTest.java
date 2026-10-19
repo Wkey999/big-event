@@ -26,6 +26,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AgentAskServiceTest {
+    @Mock private AiTrialQuotaService quota;
+    @Mock private com.itheima.service.security.ClientAddressResolver clientAddress;
     @Mock
     private AiSearchClientRouter factory;
 
@@ -60,7 +62,7 @@ class AgentAskServiceTest {
     void responseReferencesComeFromActualToolResultsRatherThanModelText() {
         ArticleTools articleTools = new ArticleTools(articleMapper, categoryMapper, browseLogService);
         ProfileTools profileTools = new ProfileTools(userProfileService);
-        AgentAskService service = new AgentAskService(factory, articleTools, profileTools, askLogService);
+        AgentAskService service = new AgentAskService(factory, articleTools, profileTools, askLogService,quota,clientAddress);
         UserAiConfig config = new UserAiConfig();
         when(factory.create("custom",config)).thenReturn(chatClient);
         ArticleSearchRow result = new ArticleSearchRow();
@@ -84,9 +86,30 @@ class AgentAskServiceTest {
 
         assertThat(askResponse.answer()).contains("999");
         assertThat(askResponse.references()).extracting(reference -> reference.id()).containsExactly(41L);
+        org.mockito.Mockito.verifyNoInteractions(quota,clientAddress);
         org.mockito.Mockito.verify(askLogService).recordForModel(org.mockito.ArgumentMatchers.eq(7L),
                 org.mockito.ArgumentMatchers.eq("find Spring articles"), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.eq(true),org.mockito.ArgumentMatchers.isNull());
+    }
+    @Test void onePlatformSearchReservesOnceBeforeCallingModel() {
+        var articles=new ArticleTools(articleMapper,categoryMapper,browseLogService);
+        var profiles=new ProfileTools(userProfileService);
+        var service=new AgentAskService(factory,articles,profiles,askLogService,quota,clientAddress);
+        when(factory.create("platform",null)).thenReturn(chatClient); when(clientAddress.current()).thenReturn("203.0.113.8");
+        when(chatClient.prompt()).thenReturn(prompt); when(prompt.system(anyString())).thenReturn(prompt);
+        when(prompt.user("hello")).thenReturn(prompt); when(prompt.tools(articles,profiles)).thenReturn(prompt);
+        when(prompt.call()).thenReturn(response); when(response.content()).thenReturn("answer");
+        service.ask("hello","platform",null);
+        var ordered=org.mockito.Mockito.inOrder(quota,chatClient);
+        ordered.verify(quota).reserve(7L,"203.0.113.8"); ordered.verify(chatClient).prompt();
+        org.mockito.Mockito.verify(quota,org.mockito.Mockito.times(1)).reserve(7L,"203.0.113.8");
+    }
+    @Test void exhaustedQuotaNeverCallsModel() {
+        var service=new AgentAskService(factory,new ArticleTools(articleMapper,categoryMapper,browseLogService),new ProfileTools(userProfileService),askLogService,quota,clientAddress);
+        when(factory.create("platform",null)).thenReturn(chatClient); when(clientAddress.current()).thenReturn("203.0.113.8");
+        org.mockito.Mockito.doThrow(new com.itheima.exception.BusinessException("次数已用完")).when(quota).reserve(7L,"203.0.113.8");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.ask("hello","platform",null)).hasMessage("次数已用完");
+        org.mockito.Mockito.verifyNoInteractions(chatClient);
     }
 }

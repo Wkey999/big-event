@@ -1,7 +1,6 @@
 package com.itheima.interceptor;
 
-import com.itheima.mapper.UserMapper;
-import com.itheima.pojo.User;
+import com.itheima.service.security.AccountAccessCache;
 import com.itheima.utils.ThreadLocalUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -16,16 +15,15 @@ public class AdminInterceptor implements HandlerInterceptor {
 
     private static final String FORBIDDEN_BODY = "{\"code\":403,\"message\":\"需要管理员权限\"}";
 
-    private final UserMapper userMapper;
+    private final AccountAccessCache accountCache;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         Long userId = ThreadLocalUtils.getUserId();
-        User user = userId == null ? null : userMapper.findById(userId);
-        if (user != null
-                && Integer.valueOf(1).equals(user.getRole())
-                && Integer.valueOf(1).equals(user.getStatus())
-                && Integer.valueOf(1).equals(user.getLoginEnabled())) {
+        Object authenticated=request.getAttribute(AccountAccessCache.REQUEST_ATTRIBUTE);
+        var account=authenticated instanceof AccountAccessCache.Account value && value.userId().equals(userId)
+                ? value : accountCache.get(userId);
+        if (account != null && account.active() && account.admin()) {
             return true;
         }
 

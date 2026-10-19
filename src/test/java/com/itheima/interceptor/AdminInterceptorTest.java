@@ -25,7 +25,7 @@ class AdminInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new AdminInterceptor(userMapper);
+        interceptor = new AdminInterceptor(new com.itheima.service.security.AccountAccessCache(userMapper));
         ThreadLocalUtils.setUserId(9L);
         User ordinary = new User();
         ordinary.setId(9L);

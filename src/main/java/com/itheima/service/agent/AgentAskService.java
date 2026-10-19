@@ -8,6 +8,7 @@ import com.itheima.utils.ThreadLocalUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import com.itheima.service.security.ClientAddressResolver;
 
 @Slf4j
 @Service
@@ -30,6 +31,8 @@ public class AgentAskService {
     private final ArticleTools articleTools;
     private final ProfileTools profileTools;
     private final AskLogService askLogService;
+    private final AiTrialQuotaService trialQuota;
+    private final ClientAddressResolver clientAddress;
 
     public AskResponse ask(String question,String mode,UserAiConfig aiConfig) {
         Long userId = ThreadLocalUtils.getUserId();
@@ -39,7 +42,10 @@ public class AgentAskService {
         boolean success = false;
         AskReferenceContext.begin();
         try {
-            answer = clientRouter.create(mode,aiConfig).prompt()
+            var client=clientRouter.create(mode,aiConfig);
+            // One reservation at the search boundary, independent of client construction/tool rounds.
+            if("platform".equals(mode)) trialQuota.reserve(userId,clientAddress.current());
+            answer = client.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(question)
                     .tools(articleTools, profileTools)

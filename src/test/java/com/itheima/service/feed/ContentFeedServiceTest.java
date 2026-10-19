@@ -95,6 +95,13 @@ class ContentFeedServiceTest {
         when(mapper.countSince(any())).thenReturn(10L);
         when(mapper.countSourceSince(eq("ithome"),any())).thenReturn(10L);
         var run=service.collect("ithome"); assertThat(run.getInserted()).isZero();
+        assertThat(run.isSkipped()).isTrue(); assertThat(run.isSuccess()).isFalse(); verify(mapper).insertRun(run);
         assertThat(run.getMessage()).contains("该来源"); verifyNoInteractions(client);
+    }
+    @Test void siteDailyCapIsSkippedRatherThanSuccessful() {
+        when(mapper.countSince(any())).thenReturn(60L);
+        var run=service.collect("github");
+        assertThat(run.isSkipped()).isTrue(); assertThat(run.isSuccess()).isFalse(); verifyNoInteractions(client,translations);
+        verify(mapper).insertRun(run);
     }
 }

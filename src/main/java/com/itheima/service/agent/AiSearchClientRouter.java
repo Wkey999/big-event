@@ -6,15 +6,18 @@ import com.itheima.pojo.UserAiConfig;
 import com.itheima.utils.ThreadLocalUtils;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
+import com.itheima.service.security.ClientAddressResolver;
 
 @Component
 public class AiSearchClientRouter {
     private final UserAiClientFactory factory;
     private final AiTrialQuotaService quota;
     private final AiTrialProperties properties;
+    private final ClientAddressResolver clientAddress;
 
-    public AiSearchClientRouter(UserAiClientFactory factory, AiTrialQuotaService quota, AiTrialProperties properties) {
+    public AiSearchClientRouter(UserAiClientFactory factory, AiTrialQuotaService quota, AiTrialProperties properties,ClientAddressResolver clientAddress) {
         this.factory=factory; this.quota=quota; this.properties=properties;
+        this.clientAddress=clientAddress;
     }
 
     public ChatClient create(String mode,UserAiConfig config) {
@@ -24,20 +27,18 @@ public class AiSearchClientRouter {
         if(!available()) throw new BusinessException("平台免费体验暂未开放，请填写自己的 API");
         UserAiConfig trial=new UserAiConfig();
         trial.setProvider("deepseek"); trial.setModel(properties.getModel()); trial.setApiKey(properties.getApiKey());
-        ChatClient client=factory.create(trial);
-        quota.reserve(ThreadLocalUtils.getUserId());
-        return client;
+        return factory.create(trial);
     }
 
     public Status status() {
-        return new Status(available(), "DeepSeek", properties.getModel(), quota.status(ThreadLocalUtils.getUserId()));
+        return new Status(available(), "DeepSeek", properties.getModel(), quota.status(ThreadLocalUtils.getUserId(),clientAddress.current()));
     }
     public String modelLabel(String mode,UserAiConfig config) {
         return "platform".equals(mode) ? "platform:"+properties.getModel()
                 : config==null ? "custom:unconfigured" : "custom:"+config.getProvider()+"/"+config.getModel();
     }
     private boolean available() {
-        return properties.isEnabled() && properties.getDailyUserLimit()>0 && properties.getDailySiteLimit()>0
+        return properties.isEnabled() && properties.getDailyUserLimit()>0 && properties.getDailySiteLimit()>0 && properties.getDailyIpLimit()>0
                 && properties.getApiKey()!=null && !properties.getApiKey().isBlank();
     }
     public record Status(boolean enabled,String provider,String model,AiTrialQuotaService.Quota quota) {}

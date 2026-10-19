@@ -16,7 +16,7 @@ class AiSearchClientRouterTest {
     final UserAiClientFactory factory=mock(UserAiClientFactory.class);
     final AiTrialQuotaService quota=mock(AiTrialQuotaService.class);
     final AiTrialProperties properties=new AiTrialProperties();
-    final AiSearchClientRouter router=new AiSearchClientRouter(factory,quota,properties);
+    final AiSearchClientRouter router=new AiSearchClientRouter(factory,quota,properties,mock(com.itheima.service.security.ClientAddressResolver.class));
     @AfterEach void cleanup() { ThreadLocalUtils.clear(); }
     @Test void trialIsDisabledWithoutDedicatedKeyAndCannotFallBack() {
         properties.setEnabled(true);
@@ -35,19 +35,19 @@ class AiSearchClientRouterTest {
         assertThatThrownBy(() -> router.create("custom",null)).hasMessageContaining("自己的 API Key");
         verifyNoInteractions(quota);
     }
-    @Test void platformUsesFixedTrialConfigurationAndReservesBeforeReturningClient() {
+    @Test void repeatedClientConstructionDoesNotConsumeQuota() {
         properties.setEnabled(true); properties.setApiKey("fake-trial-key"); ThreadLocalUtils.setUserId(7L);
         var client=mock(ChatClient.class); when(factory.create(any())).thenReturn(client);
         assertThat(router.create("platform",null)).isSameAs(client);
-        var config=ArgumentCaptor.forClass(UserAiConfig.class); verify(factory).create(config.capture());
+        assertThat(router.create("platform",null)).isSameAs(client);
+        var config=ArgumentCaptor.forClass(UserAiConfig.class); verify(factory,times(2)).create(config.capture());
         assertThat(config.getValue().getProvider()).isEqualTo("deepseek");
         assertThat(config.getValue().getModel()).isEqualTo("deepseek-flash");
-        assertThat(config.getValue().getApiKey()).isEqualTo("fake-trial-key"); verify(quota).reserve(7L);
+        assertThat(config.getValue().getApiKey()).isEqualTo("fake-trial-key"); verifyNoInteractions(quota);
     }
-    @Test void exhaustedQuotaDoesNotReturnUsableTrialClient() {
-        properties.setEnabled(true); properties.setApiKey("fake-trial-key"); ThreadLocalUtils.setUserId(7L);
-        doThrow(new BusinessException("次数已用完")).when(quota).reserve(7L);
-        assertThatThrownBy(() -> router.create("platform",null)).hasMessage("次数已用完");
+    @Test void explicitlyClosedIpAllowanceDisablesTrial() {
+        properties.setEnabled(true); properties.setApiKey("fake-trial-key"); properties.setDailyIpLimit(0);
+        assertThatThrownBy(() -> router.create("platform",null)).hasMessageContaining("暂未开放");
     }
     @Test void mixedModeIsRejectedRatherThanSilentlyChargingAnotherAccount() {
         assertThatThrownBy(() -> router.create("platform",UserAiClientFactoryTest.config("deepseek","fake-personal-key")))

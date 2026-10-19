@@ -41,7 +41,7 @@ public class ContentFeedService {
             long remaining=Math.max(0,Math.max(1,Math.min(200,properties.getMaxNewPerDay()))-mapper.countSince(LocalDate.now().atStartOfDay()));
             long sourceRemaining=Math.max(0,Math.max(1,Math.min(100,properties.getMaxNewPerSourcePerDay()))-mapper.countSourceSince(key,LocalDate.now().atStartOfDay()));
             int cap=(int)Math.min(Math.min(remaining,sourceRemaining),Math.max(1,Math.min(20,properties.getMaxNewPerSource())));
-            if(cap==0) { run.setSuccess(true); run.setMessage(remaining==0?"今日采集总量已达上限":"该来源今日采集数量已达上限"); return run; }
+            if(cap==0) { run.setSkipped(true); run.setSuccess(false); run.setMessage(remaining==0?"今日采集总量已达上限":"该来源今日采集数量已达上限"); return run; }
             LocalDateTime oldest=LocalDateTime.now().minusDays(Math.max(1,Math.min(90,properties.getMaxAgeDays())));
             for(SyndEntry raw:client.fetch(source)) {
                 if(run.getInserted()>=cap) break;
@@ -58,7 +58,7 @@ public class ContentFeedService {
             if(source.requiresTranslation) translations.translatePending(source.key);
             run.setSuccess(true); run.setMessage("采集完成，新内容进入待审核列表");
         } catch(Exception e) {
-            run.setSuccess(false); run.setMessage("来源读取或入库失败，请检查网络与迁移状态后重试");
+            run.setSuccess(false); run.setMessage(e instanceof BusinessException ? e.getMessage() : "来源读取或入库失败，请检查网络与迁移状态后重试");
         } finally {
             try { run.setFinishedAt(LocalDateTime.now()); mapper.insertRun(run); }
             finally { collecting.unlock(); }
