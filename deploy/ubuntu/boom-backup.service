@@ -1,0 +1,10 @@
+[Unit]
+Description=BOOM local database snapshot
+After=mysql.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/boom-backup
+UMask=0077
+NoNewPrivileges=true

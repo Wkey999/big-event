@@ -14,5 +14,7 @@ public class FeedRun {
     private int filtered;
     private boolean success;
     private boolean skipped;
+    private int autoPublished;
+    private int autoPending;
     private String message;
 }

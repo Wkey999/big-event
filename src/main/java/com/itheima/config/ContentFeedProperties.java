@@ -12,4 +12,6 @@ public class ContentFeedProperties {
     private int maxAgeDays=30;
     private int maxNewPerDay=60;
     private int maxNewPerSourcePerDay=10;
+    private boolean autoPublishEnabled=false;
+    private java.util.Set<String> autoPublishSources=java.util.Set.of("github","deepseek_github","qwen_github");
 }

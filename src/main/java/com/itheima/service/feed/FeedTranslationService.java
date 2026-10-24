@@ -25,11 +25,11 @@ public class FeedTranslationService {
         int saved=0;
         try {
             var entries=mapper.findUntranslated(sourceKey,10);
-            if(entries.isEmpty()) return new TranslationResult(0,0,true,"没有需要补译的待审标题");
+            if(entries.isEmpty()) return new TranslationResult(0,0,true,"没有需要补译的待处理标题");
             var titles=translator.translate(entries);
             // Network work stays outside transactions; updates never overwrite a reviewed/published row.
             for(var entry:entries) saved+=mapper.saveTranslation(entry.getId(),titles.get(entry.getId()));
-            return new TranslationResult(saved,mapper.countUntranslated(sourceKey),true,"中文标题已生成，等待人工审核");
+            return new TranslationResult(saved,mapper.countUntranslated(sourceKey),true,"中文标题已生成");
         } catch(Exception e) {
             log.warn("订阅标题翻译未完成 type={}",e.getClass().getSimpleName());
             return new TranslationResult(saved,mapper.countUntranslated(sourceKey),false,"标题翻译暂未完成，原题已保留；可稍后补译或在审核时填写中文标题");

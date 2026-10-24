@@ -1,0 +1,3 @@
+app.env
+*.sql
+*.sql.gz

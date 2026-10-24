@@ -109,8 +109,9 @@ public class UserController {
         String ext = originalName.substring(originalName.lastIndexOf("."));
         String newName = UUID.randomUUID().toString().replace("-", "") + ext;
         // 上传到阿里云 OSS，返回可直接访问的公网 URL
-        String url = ossUtils.upload(file.getInputStream(), "images/" + newName);
-        return Result.success(url);
+        try (var input = file.getInputStream()) {
+            return Result.success(ossUtils.upload(input, "images/" + newName));
+        }
     }
 
     /**

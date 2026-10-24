@@ -15,6 +15,7 @@ public class FeedPublishingService {
     private final ContentFeedMapper mapper;
     private final UserMapper userMapper;
     private final CategoryMapper categoryMapper;
+    private final FeedPublishPolicy policy;
     @Transactional
     public Long publish(Long id,Long categoryId) {
         return publish(id,categoryId,null);
@@ -31,10 +32,32 @@ public class FeedPublishingService {
             if(!FeedTitleTranslator.validTitle(title)) throw new BusinessException("请先补译或填写有效的中文标题，再审核发布");
             entry.setTranslatedTitle(title); mapper.updateReviewedTitle(entry);
         }
+        return publishLocked(id,entry,source,categoryId,reviewer,false);
+    }
+    /** Internal scheduler path. No HTTP endpoint accepts an automatic-publish bypass flag. */
+    @Transactional
+    public boolean publishAutomatically(Long id) {
+        FeedEntry entry=mapper.lockEntry(id);
+        if(entry==null) throw new BusinessException("采集内容不存在");
+        ContentFeedSource source=ContentFeedSource.from(entry.getSourceKey());
+        if(!policy.automatic(source)) throw new BusinessException("此来源不在自动发布白名单中");
+        if(!Integer.valueOf(0).equals(entry.getStatus()) || !Integer.valueOf(1).equals(entry.getAutoPublishRequested())) return false;
+        var raw=new com.rometools.rome.feed.synd.SyndEntryImpl(); raw.setTitle(entry.getTitle()); raw.setLink(entry.getSourceUrl());
+        if(ContentFeedService.toEntry(source,raw)==null) throw new BusinessException("来源链接不符合白名单要求");
+        if(source.requiresTranslation && !FeedTitleTranslator.validTitle(entry.getTranslatedTitle()))
+            throw new BusinessException("中文标题尚未就绪，保留待处理");
+        Category category=categoryMapper.findByName(source.categoryName);
+        if(category==null) throw new BusinessException("默认频道不存在，保留待处理");
+        publishLocked(id,entry,source,category.getId(),null,true);
+        return true;
+    }
+    private Long publishLocked(Long id,FeedEntry entry,ContentFeedSource source,Long categoryId,Long reviewer,boolean automatic) {
         Category category=categoryMapper.findByIdForUpdate(categoryId);
         if(category==null || !Integer.valueOf(1).equals(category.getStatus())) throw new BusinessException("请选择可用的频道");
+        if(automatic && !source.categoryName.equals(category.getCategoryName())) throw new BusinessException("默认频道已变更，保留待处理");
         // A stable row serializes lazy creation across entries and reviewers.
-        if(!userMapper.lockActiveAdminIds().contains(reviewer)) throw new BusinessException("需要管理员权限");
+        var admins=userMapper.lockActiveAdminIds();
+        if(!automatic && !admins.contains(reviewer)) throw new BusinessException("需要管理员权限");
         String username="rss_"+source.key; User bot=userMapper.findByUsername(username);
         if(bot==null) {
             bot=new User(); bot.setUsername(username); bot.setNickname(source.botNickname);
@@ -46,7 +69,10 @@ public class FeedPublishingService {
         String displayTitle=entry.getTranslatedTitle()==null?entry.getTitle():entry.getTranslatedTitle();
         Article article=new Article(); article.setTitle(displayTitle.substring(0,Math.min(50,displayTitle.length())));
         article.setUserId(bot.getId()); article.setCategoryId(categoryId); mapper.insertLinkArticle(article);
-        entry.setArticleId(article.getId()); mapper.insertArticleSource(entry); mapper.review(id,1,article.getId(),reviewer);
+        entry.setArticleId(article.getId()); mapper.insertArticleSource(entry);
+        if(automatic) {
+            if(mapper.publishAutomatically(id,article.getId())!=1) throw new BusinessException("内容状态已改变，请刷新后重试");
+        } else if(mapper.review(id,1,article.getId(),reviewer)!=1) throw new BusinessException("内容状态已改变，请刷新后重试");
         return article.getId();
     }
     @Transactional

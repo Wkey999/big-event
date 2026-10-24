@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Run as root via the systemd timer. Local files only; no paid cloud resources.
+set -euo pipefail
+umask 077
+out=/var/backups/boom
+install -d -m 700 "$out"
+stamp=$(date +%Y%m%d-%H%M%S)
+partial="$out/big_event-$stamp.sql.gz.partial"
+trap 'rm -f -- "$partial"' EXIT
+# Ubuntu's root socket authentication; never put passwords into process arguments.
+mysqldump --protocol=socket --single-transaction --routines --triggers --events \
+  --hex-blob --set-gtid-purged=OFF --no-tablespaces --databases big_event | gzip > "$partial"
+gzip -t "$partial"
+mv -- "$partial" "$out/big_event-$stamp.sql.gz"
+sha256sum "$out/big_event-$stamp.sql.gz" > "$out/big_event-$stamp.sql.gz.sha256"
+# Dedicated directory and fixed prefix only. Keep at least 14 days of backups.
+find "$out" -maxdepth 1 -type f -name 'big_event-*.sql.gz*' -mtime +14 -delete
+printf 'Database backup completed: %s\n' "$stamp"

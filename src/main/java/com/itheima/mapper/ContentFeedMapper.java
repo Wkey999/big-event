@@ -17,7 +17,7 @@ public interface ContentFeedMapper {
     long countSince(java.time.LocalDateTime dayStart);
     @Select("SELECT COUNT(*) FROM feed_entry WHERE source_key=#{source} AND fetched_at >= #{dayStart}")
     long countSourceSince(@Param("source") String source,@Param("dayStart") java.time.LocalDateTime dayStart);
-    @Insert("INSERT INTO feed_entry(source_key,source_name,source_url,url_hash,title,source_author,source_published_at,fetched_at) VALUES(#{sourceKey},#{sourceName},#{sourceUrl},#{urlHash},#{title},#{sourceAuthor},#{sourcePublishedAt},#{fetchedAt})")
+    @Insert("INSERT INTO feed_entry(source_key,source_name,source_url,url_hash,title,source_author,source_published_at,fetched_at,auto_publish_requested) VALUES(#{sourceKey},#{sourceName},#{sourceUrl},#{urlHash},#{title},#{sourceAuthor},#{sourcePublishedAt},#{fetchedAt},#{autoPublishRequested})")
     @Options(useGeneratedKeys=true,keyProperty="id")
     int insertEntry(FeedEntry entry);
     @Select("<script>SELECT * FROM feed_entry WHERE 1=1 <if test='status != null'>AND status=#{status}</if><if test='source != null'>AND source_key=#{source}</if> ORDER BY id DESC LIMIT #{offset},#{size}</script>")
@@ -28,7 +28,13 @@ public interface ContentFeedMapper {
     FeedEntry lockEntry(Long id);
     @Update("UPDATE feed_entry SET status=#{status},article_id=#{articleId},reviewed_by=#{userId},reviewed_at=NOW() WHERE id=#{id} AND status=0")
     int review(@Param("id") Long id,@Param("status") int status,@Param("articleId") Long articleId,@Param("userId") Long userId);
-    @Insert("INSERT INTO feed_run(source_key,started_at,finished_at,scanned,inserted,duplicates,filtered,success,skipped,message) VALUES(#{sourceKey},#{startedAt},#{finishedAt},#{scanned},#{inserted},#{duplicates},#{filtered},#{success},#{skipped},#{message})")
+    @Select("SELECT id FROM feed_entry WHERE source_key=#{source} AND status=0 AND auto_publish_requested=1 ORDER BY id LIMIT 10")
+    List<Long> automaticCandidates(String source);
+    @Select("SELECT COUNT(*) FROM feed_entry WHERE source_key=#{source} AND status=0 AND auto_publish_requested=1")
+    int countAutomaticPending(String source);
+    @Update("UPDATE feed_entry SET status=1,article_id=#{articleId},publish_mode=1,reviewed_by=NULL,reviewed_at=NOW() WHERE id=#{id} AND status=0 AND auto_publish_requested=1")
+    int publishAutomatically(@Param("id") Long id,@Param("articleId") Long articleId);
+    @Insert("INSERT INTO feed_run(source_key,started_at,finished_at,scanned,inserted,duplicates,filtered,success,skipped,auto_published,auto_pending,message) VALUES(#{sourceKey},#{startedAt},#{finishedAt},#{scanned},#{inserted},#{duplicates},#{filtered},#{success},#{skipped},#{autoPublished},#{autoPending},#{message})")
     int insertRun(FeedRun run);
     @Select("SELECT * FROM feed_run WHERE source_key=#{source} ORDER BY id DESC LIMIT 1")
     FeedRun latestRun(String source);

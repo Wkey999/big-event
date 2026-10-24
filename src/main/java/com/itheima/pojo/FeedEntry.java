@@ -19,4 +19,6 @@ public class FeedEntry {
     private Long articleId;
     private Long reviewedBy;
     private LocalDateTime reviewedAt;
+    private Integer autoPublishRequested;
+    private Integer publishMode;
 }

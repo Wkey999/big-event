@@ -53,11 +53,13 @@ app:
     # Legacy server-key probe is private, opt-in and administrator-only.
     dev-probe-enabled: false
   content-feeds:
-    # Requires migration 006. Automatic collection creates pending metadata only.
+    # Requires migrations 006-012. Only explicit official sources can auto-publish link cards.
     enabled: true
     interval-ms: 1800000
     initial-delay-ms: 60000
-    max-new-per-source: 5
+    max-new-per-source: 8
     max-age-days: 30
-    max-new-per-day: 60
-    max-new-per-source-per-day: 10
+    max-new-per-day: 120
+    max-new-per-source-per-day: 30
+    auto-publish-enabled: ${APP_CONTENT_FEEDS_AUTO_PUBLISH_ENABLED:true}
+    auto-publish-sources: [github, deepseek_github, qwen_github]

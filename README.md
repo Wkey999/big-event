@@ -7,18 +7,21 @@
 | 类别 | 技术 |
 |---|---|
 | 语言 / 框架 | Java 21 · Spring Boot 3.4.1 |
-| 持久层 | MyBatis 3.0.4 · MySQL 5.7 |
+| 持久层 | MyBatis 3.0.4 · MySQL 5.7（本地）/ 8.0（云端） |
 | 认证 | JWT（jjwt 0.12.6）+ HandlerInterceptor |
 | 对象存储 | 阿里云 OSS（图片上传） |
+
 | 校验 | Jakarta Validation + 自定义注解（@InValues）+ 校验分组 |
-| 其他 | Lombok · spring-security-crypto（BCrypt 预留） |
+| 其他 | Lombok · spring-security-crypto（BCrypt 密码哈希） |
+
+单机部署模板与当前验收状态见 [Ubuntu 部署说明](deploy/ubuntu/README.md)。未备案阶段仅通过 SSH 隧道私下验收。
 
 ## 功能模块
 
 - **用户**：注册 / 登录（JWT 无状态鉴权）/ 个人信息与头像更新 / 修改密码；`role=1` 为管理员
 - **分类（频道）**：全站共享频道，仅管理员可增改删；排序权重 + 全站重名校验
 - **文章**：CRUD + 草稿/发布双状态 + 分类·状态组合筛选 + 分页 + 富文本正文 + 封面图；已发布文章全站登录用户可见，草稿仅作者与管理员可见，管理员可改删任意文章
-- **文件**：头像/封面/正文插图统一走 `POST /user/upload` 直传 OSS 返回公网 URL
+- **文件**：头像/封面/正文插图统一走 `POST /user/upload`，后端上传 OSS 后返回公网 URL；云端支持内网上传与公网访问地址分离
 
 接口面：16 个 REST 端点（user 6 / category 5 / article 5 + 上传），统一 `Result` 响应体，`GlobalExceptionHandler` 兜底。
 
@@ -108,3 +111,9 @@ GitHub 待审内容会批量生成中文标题，同时保留英文原题；管�
 ## 2026-10-19 验收修复
 
 采集日志需追加执行 sql/migration/010_feed_run_skipped.sql，达上限记录以 success=0、skipped=1 标记。鉴权权限快照缓存 20 秒；平台试用按全站、网络、账号顺序事务校验。修复明细及完整验证记录见 [验收工单](docs/备忘录/16-验收发现与修复工单.md)。运行日志写入 logs/，避免占用 target/。
+
+## 官方白名单自动发布（2026-10-22）
+
+资讯来源现增加 DeepSeek 与千问的指定官方仓库，和 GitHub 官方博客共同组成默认自动发布白名单。只保存元数据与原文链接；其他来源继续审核，历史待审条目不自动放行。仓库发布使用 API，并在限流时读取同仓库的最新正式版本 Atom；不采集普通代码提交或预发行版本。电竞频道扩大为“游戏/电竞”，保留原 ID。
+
+升级需依次执行 sql/migration/011_game_channel.sql 与 012_feed_automatic_publish.sql，再重启后端。APP_CONTENT_FEEDS_AUTO_PUBLISH_ENABLED=false 可关闭自动发布。来源范围、中文标题、审计字段、重试与验收记录见 [白名单说明](docs/备忘录/17-官方来源白名单与游戏频道.md)。

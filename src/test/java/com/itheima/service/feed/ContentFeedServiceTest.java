@@ -18,9 +18,54 @@ class ContentFeedServiceTest {
     private final ContentFeedClient client=mock(ContentFeedClient.class);
     private final ContentFeedProperties properties=new ContentFeedProperties();
     private final FeedTranslationService translations=mock(FeedTranslationService.class);
-    private final ContentFeedService service=new ContentFeedService(mapper,client,properties,translations);
+    private final FeedPublishPolicy policy=new FeedPublishPolicy(properties);
+    private final FeedPublishingService publishing=mock(FeedPublishingService.class);
+    private final ContentFeedService service=new ContentFeedService(mapper,client,properties,translations,policy,publishing);
     private SyndEntryImpl entry(String url) {
         var entry=new SyndEntryImpl(); entry.setTitle("AI tools &amp; engineering"); entry.setLink(url); return entry;
+    }
+    @Test void newWhitelistedEntriesAreOptedInTranslatedThenPublished() throws Exception {
+        properties.setAutoPublishEnabled(true);
+        when(client.fetch(ContentFeedSource.GITHUB)).thenReturn(List.of(entry("https://github.blog/engineering/agents/")));
+        when(mapper.automaticCandidates("github")).thenReturn(List.of(12L));
+        when(publishing.publishAutomatically(12L)).thenReturn(true);
+        var run=service.collect("github");
+        assertThat(run.getAutoPublished()).isEqualTo(1);
+        verify(mapper).insertEntry(argThat(row -> row.getAutoPublishRequested()==1));
+        var order=inOrder(translations,publishing);
+        order.verify(translations).translatePending("github"); order.verify(publishing).publishAutomatically(12L);
+    }
+    @Test void ordinarySourcesStayManualEvenWithAutomaticMasterEnabled() throws Exception {
+        properties.setAutoPublishEnabled(true);
+        when(client.fetch(ContentFeedSource.SSPAI)).thenReturn(List.of(entry("https://sspai.com/post/123")));
+        service.collect("sspai");
+        verify(mapper).insertEntry(argThat(row -> row.getAutoPublishRequested()==0));
+        verifyNoInteractions(publishing);
+    }
+    @Test void cappedCollectionStillRetriesPreviouslyOptedInEntries() {
+        properties.setAutoPublishEnabled(true);
+        when(mapper.countSince(any())).thenReturn(60L);
+        when(mapper.automaticCandidates("github")).thenReturn(List.of(12L));
+        when(publishing.publishAutomatically(12L)).thenReturn(true);
+        var run=service.collect("github");
+        assertThat(run.isSkipped()).isTrue(); assertThat(run.getAutoPublished()).isEqualTo(1);
+        verifyNoInteractions(client);
+    }
+    @Test void automaticFailureKeepsCollectionSuccessfulAndEntryPending() throws Exception {
+        properties.setAutoPublishEnabled(true);
+        when(client.fetch(ContentFeedSource.GITHUB)).thenReturn(List.of());
+        when(mapper.automaticCandidates("github")).thenReturn(List.of(12L));
+        when(publishing.publishAutomatically(12L)).thenThrow(new com.itheima.exception.BusinessException("中文标题尚未就绪"));
+        when(mapper.countAutomaticPending("github")).thenReturn(1);
+        var run=service.collect("github");
+        assertThat(run.isSuccess()).isTrue(); assertThat(run.getAutoPublished()).isZero(); assertThat(run.getAutoPending()).isEqualTo(1);
+    }
+    @Test void repositoryArticlesMustBelongToTheExactRepositoryAllowlist() {
+        var source=ContentFeedSource.DEEPSEEK_GITHUB;
+        for(String path:List.of("/attacker/DeepInfer/releases/tag/v1","/deepseek-ai/DeepInfer-fake/releases/tag/v1","/deepseek-ai/DeepInfer/issues/1","/deepseek-ai/DeepInfer/releases/tag/"))
+            assertThat(ContentFeedService.toEntry(source,entry("https://github.com"+path))).isNull();
+        assertThat(ContentFeedService.toEntry(source,entry("https://github.com/deepseek-ai/DeepInfer/releases/tag/v1"))).isNotNull();
+        assertThat(ContentFeedService.toEntry(source,entry("https://github.com/deepseek-ai/DeepInfer"))).isNotNull();
     }
     @Test void canonicalizesLegacyPermalinksAndNeverCopiesBody() {
         var raw=entry("http://ruanyifeng.com/blog/2026/10/example.html?utm_source=rss#part");
@@ -74,6 +119,9 @@ class ContentFeedServiceTest {
         assertThat(ContentFeedService.toEntry(ContentFeedSource.BBC_SPORT,entry("https://www.bbc.co.uk.attacker.example/sport/x"))).isNull();
         assertThat(ContentFeedService.toEntry(ContentFeedSource.ITHOME,entry("https://www.ithome.com/1/014/619.htm"))).isNotNull();
         assertThat(ContentFeedService.toEntry(ContentFeedSource.ESPORTS_INSIDER,entry("https://esportsinsider.com/2026/10/event"))).isNotNull();
+        assertThat(ContentFeedService.toEntry(ContentFeedSource.ESPORTS_HOT,entry("https://news.google.com/rss/articles/CBMiWEFVX3lxTE1mRFpNYkZaZkhGV2lKLXRZZHlORXlVRnlqeERmZUd4Q0JhU3NYT1FqSDVkUWlGeE9NMklSc1YxTXZwczRoeC14UlhtOGVVb1c4eG96c2lhS3k?oc=5"))).isNotNull();
+        assertThat(ContentFeedService.toEntry(ContentFeedSource.ESPORTS_HOT,entry("https://www.gcores.com/articles/221015"))).isNotNull();
+        assertThat(ContentFeedService.toEntry(ContentFeedSource.CHINANEWS_SPORT,entry("https://www.chinanews.com.cn/ty/2026/10-24/10720527.shtml"))).isNotNull();
         assertThat(ContentFeedService.toEntry(ContentFeedSource.SSPAI,entry("https://sspai.com/post/115241"))).isNotNull();
     }
     @Test void newChannelsDoNotUseGithubTopicFilterAndSkipObviousShoppingOrBetting() {

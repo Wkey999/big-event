@@ -22,6 +22,10 @@ public class OssUtils {
     @Value("${oss.endpoint:}")
     private String endpoint;
 
+    // ECS uploads may use a private endpoint; browsers still need a public URL.
+    @Value("${oss.public-base-url:}")
+    private String publicBaseUrl;
+
     @Value("${oss.bucket-name:}")
     private String bucketName;
 
@@ -62,9 +66,18 @@ public class OssUtils {
         if (endpoint.isBlank() || bucketName.isBlank() || accessKeyId.isBlank() || accessKeySecret.isBlank()) {
             throw new BusinessException("对象存储尚未配置");
         }
+        String url = publicUrl(objectName);
         client().putObject(bucketName, objectName, in);
+        return url;
+    }
+
+    String publicUrl(String objectName) {
+        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            return publicBaseUrl.strip().replaceAll("/+$", "") + "/" + objectName;
+        }
         // endpoint 允许带 https:// 前缀配置，拼 URL 时统一剥掉，避免出现 https://bucket.https://... 的畸形地址
-        String host = endpoint.replaceFirst("^https?://", "");
+        String host = endpoint.strip().replaceFirst("^https?://", "").replaceAll("/+$", "");
+        host = host.replaceFirst("-internal\\.aliyuncs\\.com$", ".aliyuncs.com");
         return "https://" + bucketName + "." + host + "/" + objectName;
     }
 }

@@ -1,0 +1,25 @@
+[Unit]
+Description=BOOM community backend
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=boom
+Group=boom
+WorkingDirectory=/opt/boom/app
+EnvironmentFile=/etc/boom/app.env
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -Duser.timezone=Asia/Shanghai -jar /opt/boom/app/boom.jar --spring.profiles.active=prod --logging.config=/etc/boom/logback-spring.xml
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+SuccessExitStatus=143
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/boom/app
+
+[Install]
+WantedBy=multi-user.target
