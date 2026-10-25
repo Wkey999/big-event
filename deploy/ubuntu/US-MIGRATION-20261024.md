@@ -86,4 +86,3 @@ gzip -t /var/backups/boom/big_event-*.sql.gz
 
 恢复前先备份故障现场，确认恢复点及目标库。完整SQL含CREATE DATABASE/USE/DROP TABLE，只能按明确的停机恢复方案使用；不要直接导入现有开发库。前端更新可参考既有README，但不要重新执行首次安装。
 
-
