@@ -1,6 +1,8 @@
 # BOOM！大事件 · 后端
 
-一个内容社区的**服务端**：C 端浏览信息流 + B 端内容管理（文章/分类/个人设置）。基于黑马程序员《大事件》项目复刻，并在安全、校验、工程化上做了大量超出课程范围的自主改进。配套前端仓库：[Wkey999/big-event-web](https://github.com/Wkey999/big-event-web)。完整功能边界与接口清单见 [docs/功能实现说明书.md](docs/功能实现说明书.md)。
+一个面向 PC Web 的内容社区后端：社区信息流、创作与互动、官方资讯订阅、AI 辅助检索和模型榜单。项目从黑马程序员《大事件》课程起步，后来扩展成前后端分离的毕业设计。配套前端仓库：[Wkey999/big-event-web](https://github.com/Wkey999/big-event-web)。
+
+**第一次了解项目，请先看 [架构与演示路线](docs/架构与演示.md)。** 其中标明了当前已实现的能力、部署结构、演示步骤和技术边界。详细接口和历史实施记录分别见 [功能实现说明书](docs/功能实现说明书.md) 与 [部署记录](deploy/ubuntu/US-MIGRATION-20261024.md)。本文后面的阶段性记录保留了当时的实施背景，不能当成最新上线状态。
 
 ## 技术栈
 
@@ -14,7 +16,7 @@
 | 校验 | Jakarta Validation + 自定义注解（@InValues）+ 校验分组 |
 | 其他 | Lombok · spring-security-crypto（BCrypt 密码哈希） |
 
-单机部署模板与当前验收状态见 [Ubuntu 部署说明](deploy/ubuntu/README.md)。未备案阶段仅通过 SSH 隧道私下验收。
+当前采用单台海外 Ubuntu 服务器运行：Nginx 托管前端并反向代理 Spring Boot，MySQL 本机部署，Java 服务由 systemd 管理。部署过程见 [美国实例迁移与更新记录](deploy/ubuntu/US-MIGRATION-20261024.md)；公网 IP 可能变化，访问地址以实际服务器状态为准。
 
 ## 功能模块
 
@@ -23,7 +25,7 @@
 - **文章**：CRUD + 草稿/发布双状态 + 分类·状态组合筛选 + 分页 + 富文本正文 + 封面图；已发布文章全站登录用户可见，草稿仅作者与管理员可见，管理员可改删任意文章
 - **文件**：头像/封面/正文插图统一走 `POST /user/upload`，后端上传 OSS 后返回公网 URL；云端支持内网上传与公网访问地址分离
 
-接口面：16 个 REST 端点（user 6 / category 5 / article 5 + 上传），统一 `Result` 响应体，`GlobalExceptionHandler` 兜底。
+接口覆盖用户、文章、互动、搜索、AI 问答、资讯采集、管理员管理和模型榜单等模块，统一 `Result` 响应体，`GlobalExceptionHandler` 兜底。本文后续若出现旧接口数量或旧测试数量，均为当时的阶段记录。
 
 ## 核心工作与安全加固（超出课程的部分）
 
