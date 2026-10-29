@@ -1,4 +1,6 @@
 target/
+document-assistant/.venv/
+document-assistant/**/__pycache__/
 logs/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

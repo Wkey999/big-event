@@ -6,6 +6,7 @@ import com.itheima.mapper.CategoryMapper;
 import com.itheima.mapper.UserActionMapper;
 import com.itheima.mapper.UserMapper;
 import com.itheima.pojo.Article;
+import com.itheima.pojo.ArticleAddDTO;
 import com.itheima.pojo.ArticleUpdateDTO;
 import com.itheima.pojo.Category;
 import com.itheima.pojo.PageBean;
@@ -164,6 +165,7 @@ class ArticleServiceImplTest {
 
         Category category = new Category();
         category.setId(7L);
+        category.setStatus(1);
         when(categoryMapper.findByIdForUpdate(7L)).thenReturn(category);
         when(articleMapper.updateAny(any())).thenReturn(0);
 
@@ -178,6 +180,21 @@ class ArticleServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("更新失败：文章不存在或无权操作");
         verify(articleMapper).updateAny(any());
+    }
+
+    @Test
+    void addRejectsDisabledCategoryBeforeWritingArticle() {
+        Category disabled = new Category();
+        disabled.setId(7L);
+        disabled.setStatus(0);
+        when(categoryMapper.findByIdForUpdate(7L)).thenReturn(disabled);
+        ArticleAddDTO dto = new ArticleAddDTO();
+        dto.setCategoryId(7L);
+
+        assertThatThrownBy(() -> service.add(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("该分类已禁用，无法发布或编辑文章");
+        org.mockito.Mockito.verify(articleMapper, org.mockito.Mockito.never()).insert(any());
     }
 
     private static Article article(Long id, Long categoryId, LocalDateTime createTime) {

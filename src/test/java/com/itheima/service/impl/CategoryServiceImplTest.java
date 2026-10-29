@@ -7,6 +7,9 @@ import com.itheima.mapper.UserMapper;
 import com.itheima.pojo.Category;
 import com.itheima.pojo.User;
 import com.itheima.utils.ThreadLocalUtils;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,12 +44,23 @@ class CategoryServiceImplTest {
         service = new CategoryServiceImpl(categoryMapper, articleMapper, userMapper);
         User administrator = new User();
         administrator.setRole(1);
-        when(userMapper.findById(ADMIN_ID)).thenReturn(administrator);
+        lenient().when(userMapper.findById(ADMIN_ID)).thenReturn(administrator);
     }
 
     @AfterEach
     void clearUserContext() {
         ThreadLocalUtils.clear();
+    }
+
+    @Test
+    void publicCategoryListUsesOnlyEnabledCategories() {
+        Category enabled = new Category();
+        enabled.setId(1L);
+        enabled.setStatus(1);
+        when(categoryMapper.findEnabled()).thenReturn(List.of(enabled));
+
+        assertThat(service.listEnabled()).containsExactly(enabled);
+        verify(categoryMapper, never()).findAll();
     }
 
     @Test

@@ -10,6 +10,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * JWT 工具类，提供令牌生成、解析和用户信息提取功能
@@ -45,6 +46,7 @@ public class JwtUtils {
     public String generateToken(Long userId, String username) {
         return Jwts.builder()
                 .claims(Map.of("userId", userId, "username", username))
+                .id(UUID.randomUUID().toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getKey())

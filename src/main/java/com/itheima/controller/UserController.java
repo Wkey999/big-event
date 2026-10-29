@@ -8,6 +8,7 @@ import com.itheima.pojo.UserRegisterDTO;
 import com.itheima.pojo.UserUpdateDTO;
 import com.itheima.pojo.UserUpdatePwdDTO;
 import com.itheima.service.UserService;
+import com.itheima.service.security.TokenRevocationService;
 import com.itheima.utils.OssUtils;
 import com.itheima.utils.ThreadLocalUtils;
 import jakarta.validation.Valid;
@@ -30,6 +31,7 @@ public class UserController {
 
     private final UserService userService;
     private final OssUtils ossUtils;
+    private final TokenRevocationService tokenRevocation;
 
     /**
      * 用户注册
@@ -54,6 +56,13 @@ public class UserController {
     public Result<Map<String, String>> login(@Valid @RequestBody UserLoginDTO dto) {
         String token = userService.login(dto);
         return Result.success(Map.of("token", token));
+    }
+
+    /** Revoke this JWT until its natural expiration; the interceptor requires authentication. */
+    @PostMapping("/logout")
+    public Result<Void> logout(@RequestHeader("Authorization") String authorization) {
+        tokenRevocation.revoke(authorization.substring(7));
+        return Result.success();
     }
 
     /**

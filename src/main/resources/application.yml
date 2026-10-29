@@ -41,6 +41,24 @@ jwt:
   prefix: "Bearer "
 
 app:
+  document-assistant:
+    # Local Python sidecar; opt in after starting it on 127.0.0.1:8001.
+    enabled: ${APP_DOCUMENT_ASSISTANT_ENABLED:false}
+    base-url: http://127.0.0.1:8001
+  leaderboard:
+    # Apply migration 013 before enabling. Daily 04:20 in the configured zone;
+    # a failed dimension may retry twice at least five minutes apart.
+    sync-enabled: ${APP_LEADERBOARD_SYNC_ENABLED:false}
+    sync-cron: ${APP_LEADERBOARD_SYNC_CRON:0 20 4 * * *}
+    time-zone: ${APP_LEADERBOARD_TIME_ZONE:Asia/Shanghai}
+    connect-timeout: ${APP_LEADERBOARD_CONNECT_TIMEOUT:5s}
+    read-timeout: ${APP_LEADERBOARD_READ_TIMEOUT:12s}
+    retry-check-ms: 300000
+    retry-initial-delay-ms: 60000
+  auth:
+    token-revocation:
+      # Enable only after Redis is running. Enabled mode rejects requests if Redis is unavailable.
+      enabled: ${AUTH_TOKEN_REVOCATION_ENABLED:false}
   ai-trial:
     # Requires migration 009 and a dedicated trial key, independent of server translation.
     enabled: ${AI_TRIAL_ENABLED:false}

@@ -29,6 +29,11 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    public List<Category> listEnabled() {
+        return categoryMapper.findEnabled();
+    }
+
+    @Override
     public void add(Category category) {
         // 频道制：只有管理员能新建频道
         assertAdmin();

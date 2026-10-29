@@ -2,6 +2,7 @@ package com.itheima.service.leaderboard;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.itheima.mapper.LeaderboardSnapshotMapper.StateRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,46 +14,65 @@ import org.springframework.web.client.RestClient;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.net.URI;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.ResourceAccessException;
 
-/** Reads the CC BY 4.0 Arena leaderboard snapshots; never invents missing scores. */
+/** Fetches Arena data only during scheduled sync; requests read committed MySQL snapshots. */
 @Service
 public class ModelLeaderboardService {
     private static final Logger log = LoggerFactory.getLogger(ModelLeaderboardService.class);
-    private static final String DATASET_URL = "https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset";
+    static final String DATASET_URL = "https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset";
     private static final String ROWS_URL = "https://datasets-server.huggingface.co/rows?dataset=lmarena-ai%2Fleaderboard-dataset&config={config}&split=latest&offset=0&length=100";
-    private static final Duration REFRESH_INTERVAL = Duration.ofHours(2);
     private static final Duration FAILURE_RETRY = Duration.ofMinutes(5);
+    private static final int MAX_DAILY_ATTEMPTS = 3;
 
     private final ObjectMapper mapper;
     private final RestClient client;
     private final Clock clock;
-    private final Map<Dimension, CachedBoard> cache = new ConcurrentHashMap<>();
+    private final LeaderboardSnapshotStore store;
+    private final ZoneId syncZone;
+    private final Set<Dimension> syncing = ConcurrentHashMap.newKeySet();
 
     @Autowired
     public ModelLeaderboardService(ObjectMapper mapper,
-                                   @Value("${leaderboard.proxy-url:}") String configuredProxyUrl) {
-        this(mapper, defaultClient(configuredProxyUrl), Clock.systemUTC());
+                                   LeaderboardSnapshotStore store,
+                                   @Value("${leaderboard.proxy-url:}") String configuredProxyUrl,
+                                   @Value("${app.leaderboard.time-zone:Asia/Shanghai}") String timeZone,
+                                   @Value("${app.leaderboard.connect-timeout:5s}") Duration connectTimeout,
+                                   @Value("${app.leaderboard.read-timeout:12s}") Duration readTimeout) {
+        this(mapper, defaultClient(configuredProxyUrl, connectTimeout, readTimeout),
+                Clock.systemUTC(), store, ZoneId.of(timeZone));
     }
 
-    ModelLeaderboardService(ObjectMapper mapper, RestClient client, Clock clock) {
+    ModelLeaderboardService(ObjectMapper mapper, RestClient client, Clock clock,
+                            LeaderboardSnapshotStore store, ZoneId syncZone) {
         this.mapper = mapper;
         this.client = client;
         this.clock = clock;
+        this.store = store;
+        this.syncZone = syncZone;
     }
 
-    private static RestClient defaultClient(String configuredProxyUrl) {
+    private static RestClient defaultClient(String configuredProxyUrl, Duration connectTimeout, Duration readTimeout) {
         var requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(5));
-        requestFactory.setReadTimeout(Duration.ofSeconds(12));
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
         String proxyUrl = configuredProxyUrl.isBlank() ? System.getenv("HTTPS_PROXY") : configuredProxyUrl;
         if (proxyUrl != null && !proxyUrl.isBlank()) {
             URI uri = URI.create(proxyUrl);
@@ -65,11 +85,50 @@ public class ModelLeaderboardService {
         return RestClient.builder().requestFactory(requestFactory).build();
     }
 
-    public synchronized Board get(String requestedDimension) {
-        Dimension dimension = Dimension.from(requestedDimension);
+    public Board get(String requestedDimension) {
+        return store.current(Dimension.from(requestedDimension));
+    }
+
+    public void syncAll() {
         Instant now = clock.instant();
-        CachedBoard cached = cache.get(dimension);
-        if (cached != null && now.isBefore(cached.retryAfter)) return cached.board;
+        LocalDate today = LocalDate.ofInstant(now, syncZone);
+        for (Dimension dimension : Dimension.values()) {
+            try {
+                if (due(store.state(dimension), today, now)) sync(dimension);
+            } catch (Exception error) {
+                log.warn("榜单同步调度失败 dimension={} type={}", dimension.key, error.getClass().getSimpleName());
+            }
+        }
+    }
+
+    /** One bootstrap attempt after deployment, then at most two five-minute retries on a failed day. */
+    public void retryFailedToday() {
+        Instant now = clock.instant();
+        LocalDate today = LocalDate.ofInstant(now, syncZone);
+        for (Dimension dimension : Dimension.values()) {
+            try {
+                StateRow state = store.state(dimension);
+                if (state == null || (today.equals(state.getLastAttemptDay()) && due(state, today, now))) {
+                    sync(dimension);
+                }
+            } catch (Exception error) {
+                log.warn("榜单重试调度失败 dimension={} type={}", dimension.key, error.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private static boolean due(StateRow state, LocalDate today, Instant now) {
+        if (state == null || !today.equals(state.getLastAttemptDay())) return true;
+        return Integer.valueOf(2).equals(state.getLastStatus())
+                && state.getAttemptCount() != null && state.getAttemptCount() < MAX_DAILY_ATTEMPTS
+                && state.getLastAttemptAt() != null
+                && !state.getLastAttemptAt().toInstant(ZoneOffset.UTC).isAfter(now.minus(FAILURE_RETRY));
+    }
+
+    void sync(Dimension dimension) {
+        if (!syncing.add(dimension)) return;
+        Instant now = clock.instant();
+        String stage = "upstream";
         try {
             String body = client.get().uri(URI.create(ROWS_URL.replace("{config}", dimension.config)))
                     .retrieve().body(String.class);
@@ -78,19 +137,42 @@ public class ModelLeaderboardService {
             }
             Board board = parse(dimension, mapper.readTree(body), now);
             if (board.items().isEmpty()) throw new IllegalStateException("No valid overall leaderboard rows");
-            cache.put(dimension, new CachedBoard(board, now.plus(REFRESH_INTERVAL)));
-            return board;
+            String contentHash = hash(dimension, board);
+            stage = "database";
+            Instant completedAt = clock.instant();
+            store.saveSuccess(dimension, board, contentHash, completedAt,
+                    LocalDate.ofInstant(completedAt, syncZone));
         } catch (Exception error) {
-            // Keep a last-good snapshot; do not expose upstream errors or hammer the public API.
-            log.warn("榜单同步失败 dimension={} type={}", dimension.key, error.getClass().getSimpleName());
-            Board board = cached == null || cached.board.items().isEmpty()
-                    ? new Board(dimension.key, dimension.label, dimension.metric, DATASET_URL, null,
-                    null, "unavailable", List.of())
-                    : new Board(dimension.key, dimension.label, dimension.metric, DATASET_URL,
-                    cached.board.sourceDate(), cached.board.checkedAt(), "stale", cached.board.items());
-            cache.put(dimension, new CachedBoard(board, now.plus(FAILURE_RETRY)));
-            return board;
+            String summary = "database".equals(stage)
+                    ? "快照写入失败：" + error.getClass().getSimpleName() : failureSummary(error);
+            log.warn("榜单同步失败 dimension={} summary={}", dimension.key, summary);
+            try {
+                Instant failedAt = clock.instant();
+                store.saveFailure(dimension, failedAt, LocalDate.ofInstant(failedAt, syncZone), summary);
+            }
+            catch (Exception persistenceError) {
+                log.error("榜单同步状态写入失败 dimension={} type={}", dimension.key,
+                        persistenceError.getClass().getSimpleName());
+            }
+        } finally {
+            syncing.remove(dimension);
         }
+    }
+
+    private String hash(Dimension dimension, Board board) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        digest.update(dimension.key.getBytes(StandardCharsets.US_ASCII));
+        digest.update(mapper.writeValueAsBytes(List.of(board.sourceDate() == null ? "" : board.sourceDate(),
+                board.metric(), board.items())));
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static String failureSummary(Exception error) {
+        if (error instanceof RestClientResponseException response)
+            return "上游 HTTP " + response.getStatusCode().value();
+        if (error instanceof ResourceAccessException) return "上游连接或读取超时/失败";
+        if (error instanceof IllegalStateException) return "上游响应缺少有效榜单数据";
+        return "同步失败：" + error.getClass().getSimpleName();
     }
 
     static Board parse(Dimension dimension, JsonNode root, Instant checkedAt) {
@@ -109,23 +191,31 @@ public class ModelLeaderboardService {
             String name = row.path("model_name").asText("").trim();
             if (name.isEmpty() || name.length() > 160) continue;
             String published = row.path("leaderboard_publish_date").asText("");
-            if (!published.matches("\\d{4}-\\d{2}-\\d{2}")) published = null;
-            if (sourceDate == null) sourceDate = published;
-            models.add(new Model(rank, name, row.path("organization").asText(""),
-                    row.path("license").asText(""), score, published));
+            try { LocalDate.parse(published); }
+            catch (DateTimeParseException ignored) { published = null; }
+            String organization = row.path("organization").asText("");
+            String license = row.path("license").asText("");
+            if (organization.length() > 255 || license.length() > 255) continue;
+            if (published != null && (sourceDate == null || published.compareTo(sourceDate) > 0)) {
+                sourceDate = published;
+            }
+            models.add(new Model(rank, name, organization, license, score, published,
+                    false, null, null, null));
         }
-        models.sort(Comparator.comparingInt(Model::rank));
+        models.sort(Comparator.comparingInt(Model::rank).thenComparing(Model::name));
         return new Board(dimension.key, dimension.label, dimension.metric, DATASET_URL,
-                sourceDate, checkedAt.toString(), "available", List.copyOf(models));
+                sourceDate, checkedAt.toString(), "available", List.copyOf(models),
+                null, null, null, null, "never", "尚未保存");
     }
 
     public record Model(int rank, String name, String organization, String license,
-                        double score, String publishedDate) {}
+                        double score, String publishedDate, boolean newlyListed,
+                        Integer previousRank, Integer rankChange, String rankTrend) {}
 
     public record Board(String dimension, String label, String metric, String sourceUrl,
-                        String sourceDate, String checkedAt, String status, List<Model> items) {}
-
-    private record CachedBoard(Board board, Instant retryAfter) {}
+                        String sourceDate, String checkedAt, String status, List<Model> items,
+                        Long snapshotId, String snapshotSyncedAt, String lastSuccessfulSyncAt,
+                        String lastAttemptAt, String lastAttemptStatus, String syncSummary) {}
 
     enum Dimension {
         TEXT("text", "对话", "Arena Score", "text_style_control", "rating"),

@@ -72,6 +72,7 @@ public class ContentFeedService {
             if(policy.automatic(source)) publishPending(source,run);
             run.setSuccess(true); run.setMessage(policy.automatic(source)?"采集完成，白名单内容自动发布；未就绪条目保留待处理":"采集完成，新内容进入待审核列表");
         } catch(Exception e) {
+            log.warn("资讯采集失败 source={}, type={}", source.key, e.getClass().getSimpleName());
             run.setSuccess(false); run.setMessage(e instanceof BusinessException ? e.getMessage() : "来源读取或入库失败，请检查网络与迁移状态后重试");
         } finally {
             try { run.setFinishedAt(LocalDateTime.now()); mapper.insertRun(run); }

@@ -5,6 +5,7 @@ import com.itheima.utils.ThreadLocalUtils;
 import com.itheima.mapper.UserMapper;
 import com.itheima.pojo.User;
 import com.itheima.service.security.AccountAccessCache;
+import com.itheima.service.security.TokenRevocationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -18,7 +19,8 @@ class JwtInterceptorTest {
 
     private final JwtUtils jwtUtils = mock(JwtUtils.class);
     private final UserMapper userMapper = mock(UserMapper.class);
-    private final JwtInterceptor interceptor = new JwtInterceptor(jwtUtils, new AccountAccessCache(userMapper));
+    private final TokenRevocationService tokenRevocation = mock(TokenRevocationService.class);
+    private final JwtInterceptor interceptor = new JwtInterceptor(jwtUtils, new AccountAccessCache(userMapper), tokenRevocation);
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans={false,true})
@@ -30,7 +32,7 @@ class JwtInterceptorTest {
             public java.time.Instant instant() { return java.time.Instant.ofEpochMilli(millis.get()); }
         };
         var cache=new AccountAccessCache(userMapper,clock);
-        var jwt=new JwtInterceptor(jwtUtils,cache);
+        var jwt=new JwtInterceptor(jwtUtils,cache,tokenRevocation);
         var admin=new AdminInterceptor(cache);
         var user=new User(); user.setStatus(1); user.setLoginEnabled(1); user.setRole(1);
         when(jwtUtils.getUserId("token")).thenReturn(12L); when(userMapper.findById(12L)).thenReturn(user);
@@ -62,6 +64,35 @@ class JwtInterceptorTest {
         assertThat(interceptor.preHandle(request, response, new Object())).isFalse();
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(ThreadLocalUtils.getUserId()).isNull();
+    }
+
+    @Test
+    void revokedTokenIsRejectedBeforeAccountLookup() throws Exception {
+        when(jwtUtils.getUserId("issued-token")).thenReturn(12L);
+        when(tokenRevocation.isRevoked("issued-token")).thenReturn(true);
+        var request = new MockHttpServletRequest("GET", "/user/userInfo");
+        request.addHeader("Authorization", "Bearer issued-token");
+        var response = new MockHttpServletResponse();
+
+        assertThat(interceptor.preHandle(request, response, new Object())).isFalse();
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(ThreadLocalUtils.getUserId()).isNull();
+        org.mockito.Mockito.verifyNoInteractions(userMapper);
+    }
+
+    @Test
+    void redisFailureReturns503InsteadOfTreatingTokenAsValidOrInvalid() throws Exception {
+        when(jwtUtils.getUserId("issued-token")).thenReturn(12L);
+        when(tokenRevocation.isRevoked("issued-token"))
+                .thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("unavailable"));
+        var request = new MockHttpServletRequest("GET", "/user/userInfo");
+        request.addHeader("Authorization", "Bearer issued-token");
+        var response = new MockHttpServletResponse();
+
+        assertThat(interceptor.preHandle(request, response, new Object())).isFalse();
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(ThreadLocalUtils.getUserId()).isNull();
+        org.mockito.Mockito.verifyNoInteractions(userMapper);
     }
 
     @Test

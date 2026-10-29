@@ -95,13 +95,17 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     /**
-     * categoryId 由客户端传。分类已是全站共享池，任何人发布/编辑时都可引用任意
-     * 存在的分类；分类不存在与已软删都会在此被拦下（findById 自带 deleted = 0）。
+     * categoryId 由客户端传。分类已是全站共享池，任何人发布/编辑时都可引用
+     * 已启用的分类；不存在、已删除或已禁用的分类都不能用于发布或编辑。
      */
     private void assertCategoryExists(Long categoryId) {
         // add/update 在事务中持有频道行锁，与 CategoryService.delete 协调，防止产生孤儿文章。
-        if (categoryMapper.findByIdForUpdate(categoryId) == null) {
+        Category category = categoryMapper.findByIdForUpdate(categoryId);
+        if (category == null) {
             throw new BusinessException("分类不存在");
+        }
+        if (!Integer.valueOf(1).equals(category.getStatus())) {
+            throw new BusinessException("该分类已禁用，无法发布或编辑文章");
         }
     }
 

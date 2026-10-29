@@ -12,6 +12,7 @@
 | 持久层 | MyBatis 3.0.4 · MySQL 5.7（本地）/ 8.0（云端） |
 | 认证 | JWT（jjwt 0.12.6）+ HandlerInterceptor |
 | 对象存储 | 阿里云 OSS（图片上传） |
+| 可选会话组件 | Redis（JWT 退出撤销；需单独启用，当前云端尚未部署） |
 
 | 校验 | Jakarta Validation + 自定义注解（@InValues）+ 校验分组 |
 | 其他 | Lombok · spring-security-crypto（BCrypt 密码哈希） |
@@ -51,6 +52,8 @@
 
 ## 本地运行
 
+文档助手的 Python/FastAPI + LangChain 子服务位于 [document-assistant](document-assistant/README.md)。开发环境默认开放入口，需本地启动仅监听 `127.0.0.1:8001` 的 Python 服务，才能通过登录后的 `/documents` 页面使用；生产环境默认关闭。本地代码支持 TXT/MD/PDF 提取、多策略检索、无模型费用的摘录模式，以及可选的平台/自有 API 检索增强生成。后两种模式会调用外部模型；目前没有向量检索、文档持久化或云端部署，真实模型回答质量尚未验收。
+
 AI 搜索现支持个人 API 和限额免费体验：每账号每天 3 次、同一网络默认每天 10 次、全站默认每天 100 次；免费体验需管理员单独配置试用密钥，默认关闭，个人模式不回退使用站主密钥。需执行 `sql/migration/009_ai_trial_quota.sql`，配置方式及验证边界见 [AI 搜索说明](docs/备忘录/15-AI搜索个人API与免费体验.md)。
 
 资讯来源功能还需依次执行增量迁移 `sql/migration/006_content_feeds.sql` 、`sql/migration/007_feed_title_translation.sql` 与 `sql/migration/008_rename_ai_channel.sql`（新库也需在基础表与既有迁移后执行）。新增三张表，兼容 MySQL 5.7，不清空原有数据。
@@ -84,7 +87,8 @@ mvn spring-boot:run          # dev profile，端口 8080；也可 PowerShell 执
 - [ ] 清理历史测试账号（演示文章已于 2026-09-06 清洗：25 篇占位文软删、保留 17 篇补齐低饱和封面；ossselftest/layouttest 等测试账号仍在库）
 
 ### 阶段 1 · 登录与安全
-- [ ] Redis 登录态治理：token 吊销、单设备登录、`userInfo` 缓存
+- [x] Redis JWT 退出撤销的代码和前端入口；默认关闭，尚待真实 Redis 联调与云端部署，见 [Redis 会话退出说明](docs/Redis会话退出.md)
+- [ ] 单设备登录与 `userInfo` 缓存；不属于当前 Redis 改动
 - [ ] JWT 双令牌（access + refresh），前端 axios 拦截器无感续期
 - [ ] 注册密码 BCrypt 化（`spring-security-crypto` 依赖已在），存量密码迁移方案
 - [ ] OSS AccessKey 定期轮换 + RAM 最小权限策略复核

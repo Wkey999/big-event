@@ -20,7 +20,7 @@ public class CategoryController {
 
     @GetMapping("/list")
     public Result<List<Category>> list() {
-        return Result.success(categoryService.list());
+        return Result.success(categoryService.listEnabled());
     }
 
     /**

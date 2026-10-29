@@ -13,6 +13,12 @@ server:
       protocol-header: X-Forwarded-Proto
 
 spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
   datasource:
     url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/big_event?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8}
     username: ${DB_USERNAME:boom}

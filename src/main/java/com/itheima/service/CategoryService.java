@@ -7,6 +7,7 @@ import java.util.List;
 public interface CategoryService {
 
     List<Category> list();
+    List<Category> listEnabled();
 
     void add(Category category);
 

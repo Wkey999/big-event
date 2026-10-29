@@ -6,6 +6,7 @@ import com.itheima.pojo.PageBean;
 import com.itheima.pojo.User;
 import com.itheima.service.AdminArticleService;
 import com.itheima.service.security.AccountAccessCache;
+import com.itheima.service.security.TokenRevocationService;
 import com.itheima.utils.JwtUtils;
 import com.itheima.utils.ThreadLocalUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -30,7 +31,7 @@ class AuthorizationChainTest {
         when(service.list(1,10,null,null,null,null)).thenReturn(new PageBean<>(0L,java.util.List.of()));
         var cache=new AccountAccessCache(mapper);
         var mvc=MockMvcBuilders.standaloneSetup(new AdminArticleController(service))
-                .addInterceptors(new JwtInterceptor(tokens,cache),new AdminInterceptor(cache)).build();
+                .addInterceptors(new JwtInterceptor(tokens,cache,mock(TokenRevocationService.class)),new AdminInterceptor(cache)).build();
         mvc.perform(get("/admin/article/list")).andExpect(status().isUnauthorized());
         mvc.perform(get("/admin/article/list").header("Authorization","Bearer ordinary")).andExpect(status().isForbidden());
         verifyNoInteractions(service);
