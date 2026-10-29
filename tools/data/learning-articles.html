@@ -1,0 +1,205 @@
+<!-- BOOM 学习文章：原创操作指南。每条 ARTICLE 注释之后到下条之前是单篇正文；不要复制官方文档全文。 -->
+
+<!-- ARTICLE:RAG 实战一：把十份资料做成有引用的问答|||从准备测试问题到检索、生成和引用，做一条能验收的最小 RAG 链路。|||https://docs.langchain.com/oss/python/learn -->
+<h2>先确定要回答什么</h2>
+<p>不要一上来就选向量数据库。先挑十份你有权使用的资料，例如自己写的项目说明、接口文档和毕业设计需求。为每份资料记录文件名、版本、更新时间和可访问范围。然后写出二十个问题：十个能在资料中找到直接答案，五个需要合并两处信息，五个资料根本没有答案。把答案所在文件和段落也记下来，这就是最小验收集。</p>
+<h2>把检索和回答拆开</h2>
+<ol><li>读取资料，按标题和段落切成片段，每片保留文档 ID、标题和位置。</li><li>先做最简单的关键词检索，打印每个问题命中的前三个片段。</li><li>检查前三个片段有没有包含标准答案；如果没有，先修检索，不要急着调用模型。</li><li>再把问题和片段交给模型，要求每个关键结论都标出来源；找不到证据时回答“现有资料没有说明”。</li></ol>
+<pre><code>问题：这个项目的图片存在哪里？
+检索结果：部署说明第 3 节、上传接口文档第 2 节
+回答：图片对象存储在 OSS；数据库保存对象地址。[上传接口文档，第 2 节]</code></pre>
+<h2>怎么判断做成了</h2>
+<p>先统计二十题中“前三个片段包含证据”的题数，再统计回答是否忠于片段、引用是否能打开、五个无答案问题是否拒答。记录每题耗时。只有检索命中、回答有据和拒答同时成立，才能说这条 RAG 链路可用。向量检索、重排和多轮对话都可以留到这个基线之后再加。</p>
+<p>原始学习资料：<a href="https://docs.langchain.com/oss/python/learn" target="_blank" rel="noopener noreferrer">LangChain 官方学习目录</a>，其中有语义检索和 RAG 教程。本站这篇是独立的项目练习，不替代原教程。</p>
+
+<!-- ARTICLE:RAG 实战二：切块、引用和拒答的三组对照实验|||用同一批问题比较切块方式，并验证引用和无答案时的行为。|||https://docs.langchain.com/oss/python/deepagents/retrieval -->
+<h2>为什么检索到了也会答错</h2>
+<p>一段文字如果同时含有五个主题，向量可能只捕捉到其中一部分；把一句话单独切出来，又可能丢掉它的标题和限定条件。拿“免费体验每天三次，但仅登录用户可用”做例子：如果把后半句切到另一块，模型可能错误地回答“所有人每天三次”。问题不在模型多大，而在给它的证据不完整。</p>
+<h2>做三组可复现的切块</h2>
+<ol><li>A 组按固定字符数切，B 组按标题和自然段切，C 组在 B 组基础上为相邻片段保留少量重叠。</li><li>同一份资料、同一批二十个问题、同一种检索算法，分别记录前三名是否含答案。</li><li>对含表格和代码的文档单独看结果；不要让表头和数据行分离。</li></ol>
+<p>引用至少要有文档标题、位置和原始链接。若检索到的片段没有说明问题所问的事实，就不要让模型“根据常识补完”。可以在生成之前设一道证据门槛：人工抽查为无答案的问题，应返回“当前资料未覆盖”，并允许用户打开相近片段自己判断。</p>
+<h2>交付物</h2>
+<p>保存一张对照表：问题、标准证据、A/B/C 各组命中片段、是否正确拒答、耗时。最后只改动一项参数再复测，避免同时换切块、Embedding 和模型导致无法解释提升来自哪里。延伸阅读：<a href="https://docs.langchain.com/oss/python/deepagents/retrieval" target="_blank" rel="noopener noreferrer">LangChain 官方检索说明</a>。</p>
+
+<!-- ARTICLE:FastAPI 实战一：从零跑通可测试的文章 API|||用一个完整的内存版文章接口学习路径参数、请求体验证和错误返回。|||https://fastapi.tiangolo.com/tutorial/first-steps/ -->
+<h2>目标：先跑起来，再加数据库</h2>
+<p>创建空目录、安装 Python 3.10 及以上版本，执行 <code>python -m pip install "fastapi[standard]"</code>。把下面代码保存为 <code>main.py</code>，在该目录执行 <code>fastapi dev main.py</code>。这个例子故意只用内存，重启会清空数据；它用于理解接口边界，不用于生产持久化。</p>
+<pre><code>from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+app = FastAPI()
+posts: dict[int, str] = {}
+
+class NewPost(BaseModel):
+    title: str = Field(min_length=3, max_length=100)
+
+@app.post("/posts/{post_id}", status_code=201)
+def create_post(post_id: int, body: NewPost):
+    if post_id in posts:
+        raise HTTPException(status_code=409, detail="already exists")
+    posts[post_id] = body.title
+    return {"id": post_id, "title": body.title}
+
+@app.get("/posts/{post_id}")
+def get_post(post_id: int):
+    if post_id not in posts:
+        raise HTTPException(status_code=404, detail="not found")
+    return {"id": post_id, "title": posts[post_id]}</code></pre>
+<h2>按四个结果验收</h2>
+<p>打开 <code>http://127.0.0.1:8000/docs</code>，先创建 ID 为 1、标题为“学习 FastAPI”的文章，再读取 ID 1，应得到同一标题；再次创建 ID 1，应得到 409；创建标题只有两个字符的文章，应得到校验错误。最后重启服务，读取 ID 1 会得到 404，这正好说明内存版与数据库版的差别。</p>
+<p>下一步是给创建操作换成数据库事务，而不是只把 <code>posts</code> 改成全局列表。官方逐步教程：<a href="https://fastapi.tiangolo.com/tutorial/first-steps/" target="_blank" rel="noopener noreferrer">FastAPI First Steps</a>（页面可切换中文）。</p>
+
+<!-- ARTICLE:FastAPI 实战二：把鉴权和测试写进接口|||用依赖检查请求头，并用测试覆盖正常、未授权和重复创建。|||https://fastapi.tiangolo.com/tutorial/testing/ -->
+<h2>复用上篇的应用</h2>
+<p>公开的读取接口和需要权限的写入接口不应共用一条“前端隐藏按钮”的规则。给上篇的创建接口增加一个依赖：只允许带有指定测试请求头的请求进入处理函数。下面仅用于理解依赖与测试；真实登录应验证服务端签发的会话或令牌，不要把示例密钥放进网页代码。</p>
+<pre><code>from fastapi import Depends, Header, HTTPException
+
+def require_editor(x_demo_key: str | None = Header(default=None)):
+    if x_demo_key != "local-demo-only":
+        raise HTTPException(status_code=401, detail="login required")
+
+# 在上篇 main.py 中，用下面整个函数替换旧的 create_post：
+@app.post("/posts/{post_id}", status_code=201,
+          dependencies=[Depends(require_editor)])
+def create_post(post_id: int, body: NewPost):
+    if post_id in posts:
+        raise HTTPException(status_code=409, detail="already exists")
+    posts[post_id] = body.title
+    return {"id": post_id, "title": body.title}</code></pre>
+<p>接口变更后，先不点页面，直接写三条测试：缺少请求头返回 401；带请求头创建成功返回 201；同 ID 第二次创建返回 409。FastAPI 的 <code>TestClient</code> 可以在测试进程里发请求，不需要手工启动服务。</p>
+<pre><code>from fastapi.testclient import TestClient
+from main import app, posts
+
+def test_create_requires_key():
+    posts.clear()
+    client = TestClient(app)
+    assert client.post("/posts/1", json={"title": "学习接口"}).status_code == 401
+    headers = {"x-demo-key": "local-demo-only"}
+    assert client.post("/posts/1", json={"title": "学习接口"}, headers=headers).status_code == 201
+    assert client.post("/posts/1", json={"title": "再次创建"}, headers=headers).status_code == 409</code></pre>
+<p>运行 <code>python -m pip install pytest httpx</code> 和 <code>pytest -q</code>。理解测试通过后，再把固定字符串改成真正的用户身份校验，增加资源归属检查。官方资料：<a href="https://fastapi.tiangolo.com/tutorial/testing/" target="_blank" rel="noopener noreferrer">FastAPI Testing</a>。</p>
+
+<!-- ARTICLE:Spring Boot 实战：把文章发布接口拆成可测试的三层|||用 DTO、Service 和 Mapper 分开校验、事务与数据库操作。|||https://docs.spring.io/spring-boot/reference/web/servlet.html -->
+<h2>从一个具体请求开始</h2>
+<p>设想前端提交标题和正文，服务端要确认字段格式、当前用户是否可发布、频道是否启用，然后写入文章表。Controller 只接收请求和返回结果；Service 做权限与事务；Mapper 负责 SQL。把所有逻辑写在 Controller 中，后面很难单独测试“频道禁用”与“数据库写入失败”。</p>
+<pre><code>public record PublishRequest(
+    @NotBlank @Size(max = 100) String title,
+    @NotBlank String content,
+    @NotNull Long categoryId
+) {}
+
+@PostMapping("/articles")
+public ResponseEntity&lt;Long&gt; publish(@Valid @RequestBody PublishRequest request) {
+    long id = articleService.publish(request);
+    return ResponseEntity.status(201).body(id);
+}</code></pre>
+<p>Service 内按顺序做三件事：从服务端登录态取得用户 ID；查询频道状态，禁用或删除就拒绝；调用 Mapper 插入文章。需要同时写文章与审核日志时，把这组写入放在同一事务。不要让客户端传来的 <code>userId</code> 决定作者，也不要为了“测试方便”把管理员权限写死。</p>
+<h2>最小测试清单</h2>
+<ol><li>空标题在 Controller 层被拒绝，Service 不被调用。</li><li>普通用户尝试写别人的资源时被拒绝。</li><li>频道禁用时没有插入任何文章。</li><li>第二次写入抛异常时，第一条写入随事务回滚。</li></ol>
+<p>对照项目里的真实 Controller、Service 和 Mapper 找出每一步在哪一层。官方说明：<a href="https://docs.spring.io/spring-boot/reference/web/servlet.html" target="_blank" rel="noopener noreferrer">Spring Boot Web MVC</a>。该文档展示的是最新版本概念，项目实际以当前依赖版本为准。</p>
+
+<!-- ARTICLE:MySQL 实战：用 EXPLAIN 检查社区文章列表|||拿项目真实 article 表练习索引、过滤、排序与分页。|||https://dev.mysql.com/doc/refman/9.7/en/explain.html -->
+<h2>不要先凭感觉加索引</h2>
+<p>BOOM 的文章列表常按发布状态、频道与时间查询。先在本地测试库观察计划，不要直接在生产库建新索引。下面的 <code>EXPLAIN</code> 只读取执行计划，不修改数据；项目当前的 MySQL 5.7.26 可运行这条基本语法。</p>
+<pre><code>EXPLAIN
+SELECT id, title, create_time
+FROM article
+WHERE state = 1 AND deleted = 0
+ORDER BY create_time DESC
+LIMIT 20;</code></pre>
+<p>记下 <code>type</code>、<code>key</code>、<code>rows</code> 和 <code>Extra</code>。再加 <code>category_id = 某个真实频道ID</code> 比较一次。若计划使用了索引，也不能直接宣布“性能已解决”：数据只有几十行时，优化器可能认为全表扫描更便宜；大数据量下还要看是否需要额外排序和回表。</p>
+<h2>做一个对照</h2>
+<p>再运行 <code>EXPLAIN SELECT id FROM article WHERE title LIKE '%RAG%'</code>。前置通配符通常无法像前缀匹配那样利用普通 B-Tree 索引。把三条查询的计划、数据量和实际耗时放在一张表里，说明现有索引解决的是哪类查询。不要为了通过实验向业务库灌入大量无意义数据。</p>
+<p>阅读 <a href="https://dev.mysql.com/doc/refman/9.7/en/explain.html" target="_blank" rel="noopener noreferrer">MySQL 官方 EXPLAIN 说明</a>时注意版本差异；具体行为以本机 MySQL 5.7 的输出为准。</p>
+
+<!-- ARTICLE:Redis 实战：给文章计数加缓存前先做失效实验|||用 SET、GET、TTL 和 DEL 观察缓存命中、过期与数据源的关系。|||https://redis.io/docs/latest/develop/data-types/strings/ -->
+<h2>先区分事实与副本</h2>
+<p>假设文章点赞数的权威数据在 MySQL，Redis 只是加速读取。先不要碰真实点赞接口，使用一个独立测试键 <code>boom:lab:article:1:likes</code> 做实验。打开本地 Redis 命令行，执行以下命令并观察每一步的结果。</p>
+<pre><code>SET boom:lab:article:1:likes 7 EX 60
+GET boom:lab:article:1:likes
+TTL boom:lab:article:1:likes
+DEL boom:lab:article:1:likes
+GET boom:lab:article:1:likes</code></pre>
+<p>预期第一次读取为 7，TTL 逐步减少，删除后读取为空。此时应该回到 MySQL 读取真实值，而不是把空值当成 0。若 MySQL 点赞写入成功但 Redis 更新失败，可选择删除缓存让下次回源；把数据库与 Redis 当成一个事务则做不到。</p>
+<h2>把实验变成设计</h2>
+<p>画出“读缓存→未命中读库→设置过期时间”和“写库成功→删除缓存”的两条路径。再写三条测试：缓存未命中、缓存旧值、Redis 不可用。只有保证计数最终能回到数据库真值，才适合把它接入网站。不要把大量随机键长期留在本机 Redis。</p>
+<p>原始资料：<a href="https://redis.io/docs/latest/develop/data-types/strings/" target="_blank" rel="noopener noreferrer">Redis Strings 官方文档</a>。缓存设计与用户每天的 AI 调用配额是不同问题，后者需要原子计数和失败回退策略。</p>
+
+<!-- ARTICLE:Vue 3 实战：做一个能搜索和处理空状态的列表|||用 ref、computed 和模板把文章筛选过程拆清楚。|||https://vuejs.org/guide/essentials/list.html -->
+<h2>先用本地数组，不急着接接口</h2>
+<p>创建一个 Vue 3 单文件组件，准备三条文章数据。输入框负责用户关键词，<code>computed</code> 负责生成筛选结果。这样可以先确认交互、空状态与列表 key 正确，再替换为真实接口数据。</p>
+<pre><code>&lt;script setup&gt;
+import { computed, ref } from 'vue'
+const keyword = ref('')
+const articles = ref([
+  { id: 1, title: 'RAG 入门' },
+  { id: 2, title: 'FastAPI 接口' },
+  { id: 3, title: 'Vue 列表' }
+])
+const visible = computed(() =&gt;
+  articles.value.filter(item =&gt;
+    item.title.toLowerCase().includes(keyword.value.trim().toLowerCase())))
+&lt;/script&gt;
+
+&lt;template&gt;
+  &lt;input v-model="keyword" aria-label="搜索文章" /&gt;
+  &lt;p v-if="visible.length === 0"&gt;没有符合条件的文章&lt;/p&gt;
+  &lt;ul v-else&gt;&lt;li v-for="item in visible" :key="item.id"&gt;{{ item.title }}&lt;/li&gt;&lt;/ul&gt;
+&lt;/template&gt;</code></pre>
+<h2>再加入真实请求</h2>
+<p>把数据来源换成后端时，要新增 <code>loading</code> 与 <code>error</code> 两个状态。请求失败、接口返回空列表、用户筛选后无结果，三种提示不能混成一句“暂无内容”。另外核对接口的分页字段，不能只筛选当前页却让用户误以为搜索了全站。</p>
+<p>验收方式：依次输入“RAG”“不存在”和空字符串；再模拟请求失败，确认用户知道该重试还是清空筛选。官方资料：<a href="https://vuejs.org/guide/essentials/list.html" target="_blank" rel="noopener noreferrer">Vue 列表渲染</a>。</p>
+
+<!-- ARTICLE:Docker Compose 实战：先验证配置再谈一键部署|||用最小容器组合练习服务、网络、数据卷与重启后数据保留。|||https://docs.docker.com/compose/ -->
+<h2>Compose 不是把所有端口打开</h2>
+<p>前端 Nginx、Java 应用和 MySQL 可以放在同一个 Compose 项目中。公网只需暴露网站端口；应用通过内部服务名连接数据库。数据库密码从服务器上的私有环境文件读取，不写进镜像或 Git。下面是结构示意，镜像名和数据库初始化需要按自己项目补全，不能原样当成生产配置发布。</p>
+<pre><code>services:
+  web:
+    image: nginx:stable
+    ports: ["8080:80"]
+    depends_on: [app]
+  app:
+    image: boom-backend:local
+    environment:
+      DB_HOST: db
+    depends_on: [db]
+  db:
+    image: mysql:8.0
+    volumes: ["db_data:/var/lib/mysql"]
+    env_file: .env.private
+volumes:
+  db_data:</code></pre>
+<h2>练习顺序</h2>
+<ol><li>先执行 <code>docker compose config</code>，检查实际解析后的配置；不要把含密钥的输出粘到公开日志。</li><li>运行后用 <code>docker compose ps</code> 检查三个服务，不只看“容器启动”。</li><li>在测试库插入一条记录，重启容器，再查询该记录，验证数据卷确实生效。</li><li>故意停掉数据库，观察应用日志与页面错误提示；恢复数据库后再测试连接。</li></ol>
+<p>真实 BOOM 当前本地库是 MySQL 5.7，迁移到 8.0 不能只改上面一行镜像号，必须先备份并验证兼容性。官方资料：<a href="https://docs.docker.com/compose/" target="_blank" rel="noopener noreferrer">Docker Compose</a>。</p>
+
+<!-- ARTICLE:MCP 实战设计：先做一个只读的文章检索工具|||用输入、输出、权限和失败分支定义一个能讲清楚的 MCP 工具。|||https://modelcontextprotocol.io/introduction -->
+<h2>从明确能力开始</h2>
+<p>MCP 不是“给项目加一个依赖就拥有 Agent”。它规定 AI 应用如何发现和调用外部工具。对 BOOM，第一步可以只暴露公开文章搜索：输入关键词和最多返回条数，输出文章 ID、标题、摘要、站内链接。工具不需要编辑文章，更不应默认拿到管理员身份。</p>
+<pre><code>工具名：search_public_articles
+输入：{ "query": "RAG", "limit": 5 }
+输出：[{ "id": 123, "title": "...", "url": "/read/123" }]
+限制：limit 取 1～10；只查询 state=1 且 deleted=0 的文章</code></pre>
+<p>实现前先写四条测试：正常关键词能返回公开文章；空关键词得到明确参数错误；草稿和软删除文章绝不返回；数据库超时返回可重试错误而不是一篇编造的文章。工具输出仍是外部数据，模型的回答应标明文章链接。</p>
+<h2>接入顺序</h2>
+<p>先用普通后端方法跑通查询和测试，再包成 MCP 工具，最后让一个客户端实际调用。这样你能解释“业务查询逻辑”和“协议适配层”的区别。发布、删除与账号管理属于有副作用的操作，不应照搬只读工具的权限。官方入门：<a href="https://modelcontextprotocol.io/introduction" target="_blank" rel="noopener noreferrer">Model Context Protocol</a>。</p>
+
+<!-- ARTICLE:A2A 学习实验：什么时候才需要两个独立 Agent|||用资讯采集和审核场景判断普通任务队列、工具调用与 A2A 的边界。|||https://a2a-protocol.org/latest/topics/what-is-a2a/ -->
+<h2>先画边界，别先画协议图</h2>
+<p>如果采集与审核只是同一个 Spring Boot 应用里的两个类，调用方法或消息队列就够了。A2A 的价值出现在两个独立 Agent 之间：它们可能由不同团队开发、分开部署，需要发现彼此能力、交换任务状态，并在失败后继续协作。把所有后台定时任务改叫 Agent，并不会自动得到这种边界。</p>
+<h2>用一个最小任务做练习</h2>
+<ol><li>采集 Agent 只提供来源链接、标题、发布时间与去重结果，不复制正文。</li><li>审核 Agent 收到任务后返回“建议发布/建议拒绝/需要人工检查”和理由；它没有直接写公开文章的权限。</li><li>人工管理员做最终决定，发布服务单独校验权限并记录审计日志。</li></ol>
+<pre><code>任务 ID: review-42
+输入: {sourceUrl, title, publishedAt}
+状态: submitted → working → completed / failed
+结果: {recommendation, reason, evidenceUrls}</code></pre>
+<p>验收时故意让审核 Agent 超时、返回不认识的字段、重复提交同一任务。系统应保留原任务、避免重复发布，并把“建议”与“人工决定”分开。若这套实验用普通内部接口就已满足需求，就不要为了简历强上 A2A。原始资料：<a href="https://a2a-protocol.org/latest/topics/what-is-a2a/" target="_blank" rel="noopener noreferrer">A2A 官方概览</a>。</p>
+
+<!-- ARTICLE:AI 搜索验收：做一份能写进毕业论文的对照表|||用证据命中、拒答、响应时间与成本评估搜索功能，而不是只展示截图。|||https://docs.langchain.com/langsmith/evaluation-types -->
+<h2>从真实问题构造测试集</h2>
+<p>从站内已发布文章挑十个事实定位问题、五个需要综合两篇文章的问题，再准备五个站内没有答案的问题。每题保存标准答案、文章 ID 和可引用的段落。测试集要固定版本，避免一边改问题一边调系统，让结果无法比较。用户真实搜索日志可以帮助补题，但需要去掉个人信息。</p>
+<h2>分别记录四类结果</h2>
+<ol><li><strong>检索覆盖：</strong>前五条结果是否出现标准文章。</li><li><strong>证据忠实：</strong>答案中的关键句能否在引用文章中找到依据。</li><li><strong>拒答能力：</strong>五个无答案问题中，系统有几次明确说明资料不足。</li><li><strong>工程成本：</strong>记录 P50/P95 响应耗时、失败次数和模型调用量。</li></ol>
+<p>例如二十题里十五题的前五条结果包含标准文章，则本轮检索覆盖率为 15/20。不要把“模型凭常识答对”算作检索命中。比较关键词版与 RAG 版时，用同一批问题、同一份文章快照和相近的运行条件；表格里保留失败案例，分析是召回、引用还是生成环节出错。</p>
+<h2>论文里能解释什么</h2>
+<p>用“改动前后指标 + 两个典型失败例子 + 一次人工复核”说明工程价值，比写“准确率明显提高”更可信。评测方法可继续参考 <a href="https://docs.langchain.com/langsmith/evaluation-types" target="_blank" rel="noopener noreferrer">LangSmith 官方评测类型说明</a>；实际评价口径要在论文中明确写出来。</p>

@@ -16,7 +16,7 @@ public enum ContentFeedSource {
     ITHOME("ithome", "IT之家", "https://www.ithome.com/rss/", "www.ithome.com", "数码资讯助手", "科技数码", "数码硬件、软件与科技新闻", false),
     SSPAI("sspai", "少数派", "https://sspai.com/feed", "sspai.com", "工具体验助手", "科技数码", "数字生活、工具体验与使用实践", false),
     DEEPSEEK_GITHUB("deepseek_github", "DeepSeek 官方仓库", "https://api.github.com/repos/deepseek-ai/DeepInfer", "github.com", "DeepSeek 动态助手", "AI/技术热点", "官方白名单项目公开与正式版本发布", false),
-    QWEN_GITHUB("qwen_github", "千问官方仓库", "https://api.github.com/repos/QwenLM/Qwen3", "github.com", "千问动态助手", "AI/技术热点", "官方白名单项目公开与正式版本发布", false);
+    QWEN_GITHUB("qwen_github", "千问官方仓库", "https://api.github.com/repos/QwenLM/Qwen3", "github.com", "千问动态助手", "AI/技术热点", "仅 Qwen3 核心仓库动态，采集后由管理员审核", false);
 
     private static final Pattern TOPIC = Pattern.compile("(?i)\\b(ai|llms?|agents?|open.source|developers?|engineering|programming|security|coding|copilot|code|models?|software|automation|repository|repositories)\\b");
     private static final Pattern MARKETING = Pattern.compile("(?i)\\b(discount|pricing|sale|register|webinar|sponsor|early.bird)\\b|github (universe|galaxy)|save \\d");
@@ -96,11 +96,13 @@ public enum ContentFeedSource {
 
     public List<String> repositories() {
         return this == DEEPSEEK_GITHUB ? List.of("deepseek-ai/DeepInfer", "deepseek-ai/deepseek-harness", "deepseek-ai/DeepSeek-R1")
-                : this == QWEN_GITHUB ? List.of("QwenLM/Qwen3", "QwenLM/qwen-code", "QwenLM/BlenderWorld") : List.of();
+                : this == QWEN_GITHUB ? List.of("QwenLM/Qwen3") : List.of();
     }
 
     public boolean repositorySource() { return !repositories().isEmpty(); }
-    public boolean autoPublishEligible() { return this == GITHUB || repositorySource(); }
+    // Qwen remains collectable, but its release cards require an administrator's review.
+    // This hard boundary also rejects stale production configuration that still lists qwen_github.
+    public boolean autoPublishEligible() { return this == GITHUB || this == DEEPSEEK_GITHUB; }
 
     public boolean acceptsArticlePath(String path) {
         if (!path.startsWith(articlePathPrefix())) return false;

@@ -48,6 +48,9 @@ class FeedPublishingServiceTest {
     @Test void disabledOrNonWhitelistedSourceCannotUseSchedulerBypass() {
         automaticEntry("sspai","https://sspai.com/post/123");
         assertThatThrownBy(() -> service.publishAutomatically(2L)).hasMessageContaining("白名单");
+        automaticEntry("qwen_github","https://github.com/QwenLM/Qwen3/releases/tag/v1.0.0");
+        properties.setAutoPublishSources(java.util.Set.of("github","deepseek_github","qwen_github"));
+        assertThatThrownBy(() -> service.publishAutomatically(2L)).hasMessageContaining("白名单");
         automaticEntry("github","https://github.blog/engineering/agents/"); properties.setAutoPublishEnabled(false);
         assertThatThrownBy(() -> service.publishAutomatically(2L)).hasMessageContaining("白名单");
         verify(mapper,never()).insertLinkArticle(any());

@@ -80,4 +80,4 @@ app:
     max-new-per-day: 120
     max-new-per-source-per-day: 30
     auto-publish-enabled: ${APP_CONTENT_FEEDS_AUTO_PUBLISH_ENABLED:true}
-    auto-publish-sources: [github, deepseek_github, qwen_github]
+    auto-publish-sources: [github, deepseek_github]
