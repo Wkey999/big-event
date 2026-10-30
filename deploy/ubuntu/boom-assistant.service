@@ -1,0 +1,37 @@
+# BOOM 文档助手（Python 侧车）
+#
+# 安装步骤（在服务器上执行）：
+#   1) 代码放到 /opt/boom/document-assistant（仓库里 document-assistant/ 整个目录）
+#   2) cd /opt/boom/document-assistant && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+#   3) cp deploy/ubuntu/boom-assistant.service /etc/systemd/system/
+#   4) systemctl daemon-reload && systemctl enable --now boom-assistant
+#   5) 后端 /etc/boom/app.env 里设置 APP_DOCUMENT_ASSISTANT_ENABLED=true 后 systemctl restart boom
+#   6) 进入 /admin/settings，用「功能开关」打开文档助手（前台入口随即出现）
+#
+# 只监听 127.0.0.1:8001，公网不可直接访问；请求统一经 Spring Boot 网关 /document/**。
+
+[Unit]
+Description=BOOM document assistant (loopback sidecar)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=boom
+Group=boom
+WorkingDirectory=/opt/boom/document-assistant
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/boom/document-assistant/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 1
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/boom/document-assistant
+
+[Install]
+WantedBy=multi-user.target
