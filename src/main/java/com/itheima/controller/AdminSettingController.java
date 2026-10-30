@@ -34,9 +34,10 @@ public class AdminSettingController {
         return Result.success(switches.status(FeatureSwitchService.DOCUMENT_ASSISTANT, documentAssistantConfigDefault));
     }
 
-    /** enabled=true/false 显式覆盖；不传或传 null 表示恢复“跟随配置”。 */
+    /** enabled=true/false 显式覆盖；不传 body、传 {} 或传 null 都表示恢复“跟随配置”。 */
     @PutMapping("/document-assistant")
-    public Result<FeatureSwitchService.SwitchStatus> updateDocumentAssistant(@RequestBody ToggleRequest request) {
+    public Result<FeatureSwitchService.SwitchStatus> updateDocumentAssistant(
+            @RequestBody(required = false) ToggleRequest request) {
         Long adminId = ThreadLocalUtils.getUserId();
         if (request == null || request.enabled() == null) {
             return Result.success(switches.reset(FeatureSwitchService.DOCUMENT_ASSISTANT, documentAssistantConfigDefault, adminId));

@@ -41,9 +41,10 @@ class DocumentAssistantSwitchTest {
 
         assertTrue(controller.status().getData().enabled());
         assertEquals("database", controller.status().getData().source());
-        // 开关打开后不再报“尚未启用”（随后会因本地无侧车而报不可用，属于另一条错误）
+        // 用空正文触发本地校验：证明请求已越过“尚未启用”这道门，且不会真的访问 Python 侧车
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> controller.analyze(new DocumentAssistantController.AnalyzeRequest("正文", "问题")));
+                () -> controller.analyze(new DocumentAssistantController.AnalyzeRequest("   ", "问题")));
+        assertTrue(ex.getMessage().contains("请输入文档内容"), "应被入参校验拦下：" + ex.getMessage());
         assertFalse(ex.getMessage().contains("尚未启用"));
     }
 
