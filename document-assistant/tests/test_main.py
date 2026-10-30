@@ -2,10 +2,13 @@ import io
 import unittest
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
-from app.main import analyze, app
+from app.main import analyze, app, clear_vector_index_cache
 
 
 class AnalyzeTest(unittest.TestCase):
+    def setUp(self):
+        clear_vector_index_cache()
+
     def test_finds_source_passage_for_question(self):
         result = analyze("活动报名截止日期是 11 月 5 日。参加者需提交表格。", "报名截止日期是什么时候？")
         self.assertEqual("extractive", result.mode)
@@ -27,6 +30,7 @@ class AnalyzeTest(unittest.TestCase):
         response = client.post("/v1/analyze", json={"text": "报名截止日期为11月5日。", "question": "报名截止日期？"})
         self.assertEqual(200, response.status_code)
         self.assertEqual("extractive", response.json()["mode"])
+        self.assertEqual("faiss-IndexFlatIP", response.json()["vector_backend"])
         self.assertTrue(response.json()["citations"])
         self.assertEqual(422, client.post("/v1/analyze", json={"text": "x" * 20_001}).status_code)
 
@@ -44,6 +48,23 @@ class AnalyzeTest(unittest.TestCase):
 
         hybrid_res = analyze(doc, "项目方案里 Redis 鉴权摘要算法是什么？", strategy="hybrid", top_k=2)
         self.assertIn("SHA-256", hybrid_res.citations[0].excerpt)
+
+    def test_faiss_vector_search_and_lru_index_cache(self):
+        doc = (
+            "[第 1 页]\n研发外设申领规范：单价 3000 元以内的显示器由直属主管审批。\n\n"
+            + ("日常行政管理过渡段落。" * 80)
+            + "\n\n[第 2 页]\n酒店住宿报销规定：一线城市每人每晚标准上限为 550 元。"
+        )
+        first = analyze(doc, "去外地宾馆过夜的房费报账标准是多少？", strategy="vector", top_k=2)
+        self.assertFalse(first.index_cached)
+        self.assertTrue(first.citations)
+        self.assertIn("550", first.citations[0].excerpt)
+        self.assertEqual(2, first.citations[0].page)
+
+        second = analyze(doc, "申领硬件外设找谁审批？", strategy="vector", top_k=2)
+        self.assertTrue(second.index_cached)
+        self.assertTrue(second.citations)
+        self.assertIn("3000", second.citations[0].excerpt)
 
     def test_extract_endpoint_supports_txt_and_rejects_blank_scanned_pdf(self):
         client = TestClient(app)

@@ -307,7 +307,7 @@ public class DocumentAssistantController {
             @NotBlank @Size(max = 20_000) String text,
             @Size(max = 300) String question,
             @Pattern(regexp = "extractive|platform|custom", message = "不支持的分析模式") String mode,
-            @Pattern(regexp = "bm25|hybrid|tfidf|overlap", message = "不支持的检索策略") String strategy,
+            @Pattern(regexp = "bm25|hybrid|vector|tfidf|overlap", message = "不支持的检索策略") String strategy,
             @Valid UserAiConfig aiConfig) {
         public AnalyzeRequest(String text, String question) {
             this(text, question, "extractive", "bm25", null);

@@ -6,8 +6,8 @@ Java 网关（`DocumentAssistantController`）统一负责登录鉴权、参数�
 
 ## 核心能力与边界
 
-1. **多策略检索与噪声门控（`POST /v1/analyze`）**
-   - 支持 `strategy`: `bm25`（默认，Okapi BM25 稀疏加权）、`hybrid`（BM25 + TF-IDF 倒数秩融合 RRF）、`tfidf`（余弦相似度）、`overlap`（2-gram 词集重叠基线）。
+1. **多策略检索、FAISS 向量索引与噪声门控（`POST /v1/analyze`）**
+   - 支持 `strategy`: `hybrid`（FAISS `IndexFlatIP` 稠密向量检索 + BM25 稀疏检索双路 RRF 融合）、`vector`（FAISS `IndexFlatIP` 512 维稠密向量检索，支持配置 `EMBEDDING_API_KEY` 切换远程 Embedding 模型，并内置基于 `xxHash64` 的内存 LRU 索引缓存与可选 `.faiss` 磁盘持久化）、`bm25`（默认，Okapi BM25 稀疏加权）、`tfidf`（余弦相似度）、`overlap`（2-gram 词集重叠基线）。
    - 自动识别 `[第 N 页]` 页码标记并回填至 `citations[].page`。
    - 内置多词提问单字面碰撞噪声门控（Noise Gate），对仅偶然命中单个泛词的语料外提问直接返回空引用列表。
 2. **文档解析与扫描件拦截（`POST /v1/extract`）**
