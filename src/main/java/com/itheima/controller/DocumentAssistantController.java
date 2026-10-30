@@ -9,6 +9,7 @@ import com.itheima.pojo.UserAiConfig;
 import com.itheima.service.agent.AiSearchClientRouter;
 import com.itheima.service.agent.AiTrialQuotaService;
 import com.itheima.service.security.ClientAddressResolver;
+import com.itheima.service.setting.FeatureSwitchService;
 import com.itheima.utils.ThreadLocalUtils;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -21,6 +22,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -65,14 +67,22 @@ public class DocumentAssistantController {
             3. 使用简洁、清晰的中文回答。
             """;
 
-    private final boolean enabled;
+    /** 配置默认值；数据库运行时开关（FeatureSwitchService）优先于它。 */
+    private final boolean configDefault;
     private final RestClient client;
     private final AiSearchClientRouter clientRouter;
     private final AiTrialQuotaService trialQuota;
     private final ClientAddressResolver clientAddress;
+    private final FeatureSwitchService switches;
 
     public DocumentAssistantController(boolean enabled, String baseUrl) {
-        this(enabled, baseUrl, null, null, null);
+        this(enabled, baseUrl, null, null, null, null);
+    }
+
+    /** 兼容既有测试/手工装配：不带运行时开关，等价于只跟随配置。 */
+    public DocumentAssistantController(boolean enabled, String baseUrl, AiSearchClientRouter clientRouter,
+                                      AiTrialQuotaService trialQuota, ClientAddressResolver clientAddress) {
+        this(enabled, baseUrl, clientRouter, trialQuota, clientAddress, null);
     }
 
     @Autowired
@@ -81,26 +91,44 @@ public class DocumentAssistantController {
             @Value("${app.document-assistant.base-url:http://127.0.0.1:8001}") String baseUrl,
             @Autowired(required = false) AiSearchClientRouter clientRouter,
             @Autowired(required = false) AiTrialQuotaService trialQuota,
-            @Autowired(required = false) ClientAddressResolver clientAddress) {
+            @Autowired(required = false) ClientAddressResolver clientAddress,
+            @Autowired(required = false) FeatureSwitchService switches) {
         URI uri = URI.create(baseUrl);
         if (!"http".equals(uri.getScheme()) || !"127.0.0.1".equals(uri.getHost()) || uri.getPort() < 1
                 || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null
                 || (uri.getPath() != null && !uri.getPath().isEmpty() && !"/".equals(uri.getPath()))) {
             throw new IllegalArgumentException("Document assistant must use a loopback HTTP address");
         }
-        this.enabled = enabled;
+        this.configDefault = enabled;
         this.clientRouter = clientRouter;
         this.trialQuota = trialQuota;
         this.clientAddress = clientAddress;
+        this.switches = switches;
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(2));
         factory.setReadTimeout(Duration.ofSeconds(10));
         this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 
+    /** 运行时开关：数据库设置优先，缺省跟随配置文件。 */
+    private boolean active() {
+        return switches == null ? configDefault : switches.documentAssistantEnabled(configDefault);
+    }
+
+    /**
+     * 前端入口显隐用：返回开关状态，不探测 Python 侧车（避免每次页面加载都等一次超时）。
+     */
+    @GetMapping("/assistant/status")
+    public Result<FeatureSwitchService.SwitchStatus> status() {
+        var state = switches == null
+                ? new FeatureSwitchService.SwitchStatus(configDefault, "config", configDefault)
+                : switches.status(FeatureSwitchService.DOCUMENT_ASSISTANT, configDefault);
+        return Result.success(state);
+    }
+
     @PostMapping("/analyze")
     public Result<Analysis> analyze(@Valid @RequestBody AnalyzeRequest request) {
-        if (!enabled) throw new BusinessException("文档助手尚未启用");
+        if (!active()) throw new BusinessException("文档助手尚未启用");
         if (request.text() == null || request.text().isBlank()) throw new BusinessException("请输入文档内容");
 
         String effectiveMode = (request.mode() == null || request.mode().isBlank()) ? "extractive" : request.mode();
@@ -195,7 +223,7 @@ public class DocumentAssistantController {
 
     @PostMapping(value = "/extract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<ExtractResult> extract(@RequestParam("file") MultipartFile file) {
-        if (!enabled) throw new BusinessException("文档助手尚未启用");
+        if (!active()) throw new BusinessException("文档助手尚未启用");
         if (file == null || file.isEmpty()) throw new BusinessException("请选择要上传的文档");
         if (file.getSize() > MAX_UPLOAD_BYTES) throw new BusinessException("文件大小不能超过 5 MB");
 
