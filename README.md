@@ -52,7 +52,7 @@
 
 ## 本地运行
 
-文档助手的 Python/FastAPI + LangChain 子服务位于 [document-assistant](document-assistant/README.md)。开发环境默认开放入口，需本地启动仅监听 `127.0.0.1:8001` 的 Python 服务，才能通过登录后的 `/documents` 页面使用；生产环境默认关闭。本地代码支持 TXT/MD/PDF 提取、多策略检索、无模型费用的摘录模式，以及可选的平台/自有 API 检索增强生成。后两种模式会调用外部模型；目前没有向量检索、文档持久化或云端部署，真实模型回答质量尚未验收。
+文档助手的 Python/FastAPI + LangChain 子服务位于 [document-assistant](document-assistant/README.md)。开发环境默认开放入口，需本地启动仅监听 `127.0.0.1:8001` 的 Python 服务，才能通过登录后的 `/documents` 页面使用；生产环境默认关闭。本地代码支持 TXT/MD/PDF 提取、多策略检索、不调用聊天模型的摘录模式（远程 Embedding 仍可能计费），以及可选的平台/自有 API 检索增强生成。后两种模式会调用外部模型；已加入 FAISS 检索与可选的索引磁盘缓存及恢复；默认向量编码是手写词簇与特征哈希，配置私有 Embedding Key 后可使用远程模型，失败时明确报错且不混用编码空间。尚无完整文档知识库持久化或云端部署，真实模型回答质量尚未验收。
 
 AI 搜索现支持个人 API 和限额免费体验：每账号每天 3 次、同一网络默认每天 10 次、全站默认每天 100 次；免费体验需管理员单独配置试用密钥，默认关闭，个人模式不回退使用站主密钥。需执行 `sql/migration/009_ai_trial_quota.sql`，配置方式及验证边界见 [AI 搜索说明](docs/备忘录/15-AI搜索个人API与免费体验.md)。
 
