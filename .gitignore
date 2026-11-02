@@ -1,6 +1,10 @@
 target/
 document-assistant/.venv/
 document-assistant/**/__pycache__/
+document-assistant/.vector-cache/
+document-assistant/.env.local
+*.boomidx
+deploy/ubuntu/assistant.env
 logs/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

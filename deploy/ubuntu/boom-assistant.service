@@ -22,6 +22,10 @@ Group=boom
 WorkingDirectory=/opt/boom/document-assistant
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=VECTOR_CACHE_DIR=/var/lib/boom-assistant/indexes
+EnvironmentFile=-/etc/boom/assistant.env
+StateDirectory=boom-assistant
+StateDirectoryMode=0700
 ExecStart=/opt/boom/document-assistant/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 1
 Restart=on-failure
 RestartSec=10
@@ -31,7 +35,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/boom/document-assistant
+ReadWritePaths=/var/lib/boom-assistant
 
 [Install]
 WantedBy=multi-user.target
