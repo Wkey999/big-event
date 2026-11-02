@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import statistics
 import sys
@@ -13,14 +14,10 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from app.main import RetrievalStrategy, rank_chunks  # noqa: E402
-from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
+from app.main import RetrievalStrategy, clear_vector_index_cache, rank_chunks, splitter  # noqa: E402
 
-# Use a fine-grained 260-char splitter on the multi-chapter handbook so the corpus yields ~14 chunks
-# with realistic cross-chunk term interference (shared words like "系统", "规定", "报销", "服务", "标准").
-EVAL_SPLITTER = RecursiveCharacterTextSplitter(
-    chunk_size=260, chunk_overlap=30, separators=["\n\n", "\n", "。", "！", "？", " ", ""]
-)
+# Use exactly the service's 700-character / 80-overlap splitter, not a tuned eval-only one.
+EVAL_SPLITTER = splitter
 
 CORPUS_TEXT = """
 【总则：企业办公与社区平台通用管理导引】
@@ -123,6 +120,7 @@ def is_chunk_relevant(chunk: str, expected_keywords: tuple[str, ...]) -> bool:
 
 
 def evaluate_strategy(chunks: list[str], strategy: RetrievalStrategy) -> dict:
+    clear_vector_index_cache()
     answerable_cases = [c for c in EVAL_CASES if c.expected_keywords]
     unanswerable_cases = [c for c in EVAL_CASES if not c.expected_keywords]
 
@@ -146,15 +144,8 @@ def evaluate_strategy(chunks: list[str], strategy: RetrievalStrategy) -> dict:
         positive = [(score, idx, ch) for score, idx, ch in ranked[:3] if score > 0]
 
         if not case.expected_keywords:
-            threshold_map = {
-                "bm25": 4.3,
-                "overlap": 3.0,
-                "tfidf": 0.14,
-                "vector": 0.16,
-                "hybrid": 1.65,
-            }
-            threshold = threshold_map.get(strategy, 2.0)
-            rejected = (not positive) or (positive[0][0] < threshold)
+            # Match analyze(): a positive returned passage is not an online rejection.
+            rejected = not positive
             if rejected:
                 cat["hit1"] += 1
                 cat["hit3"] += 1
@@ -203,11 +194,14 @@ def render_markdown_report(chunks: list[str], results: list[dict]) -> str:
     lines = [
         "# BOOM 文档助手：检索策略对比实验报告",
         "",
-        "> 本报告由 [`document-assistant/eval/evaluate_retrieval.py`](file:///D:/workplace/big-event/document-assistant/eval/evaluate_retrieval.py) 自动运行生成，用于毕业设计论文实验分析与工程基线核对。",
+        "> 由 [评测脚本](../document-assistant/eval/evaluate_retrieval.py) 生成的本地离线回归报告，不代表线上或通用语义模型效果。",
         "",
         "## 一、实验设置与数据集说明",
         "",
         f"- **测试语料规模**：14 条企业行政、社区安全架构与赛事规范长文档，总字符数 `{len(CORPUS_TEXT)}` 字，切分为 `{len(chunks)}` 个独立文本片段（Chunks），各片段间共享大量高频干扰词（如“系统”、“规定”、“标准”、“报销”、“审批”）。",
+        "- **分块**：与服务一致，700 字符、80 字符重叠。文中的社区规则仅为评测夹具，不是最新产品政策。",
+        "- **编码**：离线手写词簇 + 特征哈希（512 维），没有调用远程 Embedding 或聊天模型。",
+        "- **拒答口径**：与服务一致，Top-3 没有正分片段才记为拒答；不再为无答案题设置评测专用阈值。",
         f"- **评测问题集**：共 `{len(EVAL_CASES)}` 条结构化测试问题，覆盖 4 类典型问答场景：",
         "  1. **精确事实/专有名词（8 题）**：考察特定配置项、金额、日期、哈希算法名称的精确匹配能力；",
         "  2. **同义改写/语义概括（10 题）**：考察口语化同义提问（如“宾馆过夜房费”对应“酒店住宿费用”、“下线失活”对应“退出登录”）及高频词干扰下的召回能力；",
@@ -216,15 +210,15 @@ def render_markdown_report(chunks: list[str], results: list[dict]) -> str:
         "",
         "## 二、总体指标对比（Top-K = 3）",
         "",
-        "| 检索策略 | 算法说明 | 有答案 Hit@1 | 有答案 Recall@3 | MRR@3 | 无答案拒答率 | P50 耗时 (ms) | P95 耗时 (ms) |",
+        "| 检索策略 | 算法说明 | 有答案 Hit@1 | 有答案 Hit@3 | MRR@3 | 无答案拒答率 | P50 耗时 (ms) | P95 耗时 (ms) |",
         "|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     labels = {
         "overlap": "2-gram 词集重叠 (Baseline)",
         "tfidf": "TF-IDF 余弦相似度",
         "bm25": "Okapi BM25 稀疏检索 (k1=1.5, b=0.75)",
-        "vector": "FAISS IndexFlatIP 稠密向量检索 (512维)",
-        "hybrid": "Hybrid RRF (FAISS 稠密向量 + BM25 稀疏双路融合)",
+        "vector": "FAISS + 离线特征编码 (512维)",
+        "hybrid": "RRF (离线特征向量 + BM25)",
     }
     for r in results:
         lines.append(
@@ -256,14 +250,11 @@ def render_markdown_report(chunks: list[str], results: list[dict]) -> str:
         "",
         "## 四、关键实验结论与工程取舍",
         "",
-        "1. **FAISS 稠密向量检索（Vector）与 BM25 稀疏检索的互补性**：",
-        "   - `bm25` 对包含精确配置项、错误码、数字专有名词（如 `SHA-256`、`503`、`AiTrialQuotaService`）的提问区分度极高，但在同义改写题（如用户问“去北上广深宾馆过夜的房费报账上限”，而原文表述为“一线城市酒店住宿费报销标准”）上因缺乏字面重叠而漏召回；",
-        "   - `vector` 基于 **FAISS `IndexFlatIP`（L2 归一化内积 = 余弦相似度）** 构建稠密向量索引，结合语义概念簇与子词特征投影（同时支持接入 OpenAI/百炼 `text-embedding-v3` 远程向量接口），有效召回同义改写段落；",
-        "   - `hybrid` 通过 **RRF（Reciprocal Rank Fusion，倒数秩融合）** 将 **BM25 稀疏检索** 与 **FAISS 稠密向量检索** 双路结果融合，在精确专有名词题和同义改写题上同时取得最高命中率。",
-        "2. **文档内容哈希（xxHash64）与 FAISS 索引 LRU 缓存**：",
-        "   - 针对同一篇上传文档的连续多轮提问，系统对分块文本计算 `xxh64` 摘要并在进程内维护 LRU 向量索引缓存（支持 `VECTOR_CACHE_DIR` 落盘 `.faiss` 索引文件），二次提问直接复用已构建的 `faiss.IndexFlatIP` 索引，单次检索耗时低于 `1.5 ms`。",
-        "3. **无答案噪声门控（Noise Gate）对防幻觉的作用**：",
-        "   - 针对包含单个通用词（如“校医院报销”、“海外出差汇率”）的语料外提问，通过相关性阈值门控拦截低置信度片段，在调用外部大模型前实现高准确率无证据拒答（免扣配额）。",
+        "1. 以上是自建的 30 题开发回归集；离线编码中的手写词簇与题目主题有重合，尚无独立保留集，不能将表格写成模型通用语义能力或线上准确率。",
+        "2. 命中按预置关键字判断：Top-3 任一片段包含预期关键字即计 Hit@3；这不等于多证据片段召回率 Recall@3，也不保证模型最终回答事实正确。",
+        "3. 每种策略开始前清空内存索引缓存；计时覆盖检索函数（包含首次建索引及后续复用），不含文件提取、分块、远程 Embedding、聊天模型或网络。单次小样本耗时不能当作端到端延迟或并发容量。",
+        "4. 向量方案是否优于 BM25 应以表格和独立测试集为准；没有预设最佳策略，也没有为无答案题单独降低通过门槛。",
+        "5. 当前缓存支持原子保存与重启恢复；这是临时索引缓存，不是用户文档知识库。真实远程模型效果、独立保留集及人工引用正确性评估仍待验证。",
         "",
         "## 五、复现命令",
         "",
@@ -273,6 +264,10 @@ def render_markdown_report(chunks: list[str], results: list[dict]) -> str:
         "```",
         "",
     ])
+    lines.extend(["## 六、未通过样例", "", "| 策略 | 题号 | 问题 | 现象 |", "|---|---|---|---|"])
+    for result in results:
+        for qid, question, reason in result["failures"]:
+            lines.append(f"| {result['strategy']} | {qid} | {question} | {reason} |")
     return "\n".join(lines)
 
 
@@ -281,6 +276,10 @@ def main() -> None:
     parser.add_argument("--write-report", action="store_true", help="Write markdown report to docs/")
     args = parser.parse_args()
 
+    if os.getenv("EMBEDDING_API_KEY", "").strip():
+        parser.error("This offline benchmark requires EMBEDDING_API_KEY to be empty; it never calls paid models.")
+    if os.getenv("VECTOR_CACHE_DIR", "").strip():
+        parser.error("Set VECTOR_CACHE_DIR to empty so this benchmark does not reuse a disk index.")
     chunks = EVAL_SPLITTER.split_text(CORPUS_TEXT)
     strategies: list[RetrievalStrategy] = ["overlap", "tfidf", "bm25", "vector", "hybrid"]
     results = [evaluate_strategy(chunks, s) for s in strategies]

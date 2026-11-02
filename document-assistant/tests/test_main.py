@@ -1,5 +1,7 @@
 import io
+import os
 import unittest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 from app.main import analyze, app, clear_vector_index_cache
@@ -7,6 +9,9 @@ from app.main import analyze, app, clear_vector_index_cache
 
 class AnalyzeTest(unittest.TestCase):
     def setUp(self):
+        environment = patch.dict(os.environ, {"EMBEDDING_API_KEY": "", "VECTOR_CACHE_DIR": ""})
+        environment.start()
+        self.addCleanup(environment.stop)
         clear_vector_index_cache()
 
     def test_finds_source_passage_for_question(self):
@@ -30,7 +35,8 @@ class AnalyzeTest(unittest.TestCase):
         response = client.post("/v1/analyze", json={"text": "报名截止日期为11月5日。", "question": "报名截止日期？"})
         self.assertEqual(200, response.status_code)
         self.assertEqual("extractive", response.json()["mode"])
-        self.assertEqual("faiss-IndexFlatIP", response.json()["vector_backend"])
+        self.assertIsNone(response.json()["vector_backend"])
+        self.assertIsNone(response.json()["embedding_mode"])
         self.assertTrue(response.json()["citations"])
         self.assertEqual(422, client.post("/v1/analyze", json={"text": "x" * 20_001}).status_code)
 
@@ -57,6 +63,8 @@ class AnalyzeTest(unittest.TestCase):
         )
         first = analyze(doc, "去外地宾馆过夜的房费报账标准是多少？", strategy="vector", top_k=2)
         self.assertFalse(first.index_cached)
+        self.assertEqual("faiss-IndexFlatIP", first.vector_backend)
+        self.assertEqual("local-feature-hash-512d", first.embedding_mode)
         self.assertTrue(first.citations)
         self.assertIn("550", first.citations[0].excerpt)
         self.assertEqual(2, first.citations[0].page)

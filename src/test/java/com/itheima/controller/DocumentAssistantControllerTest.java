@@ -114,6 +114,33 @@ class DocumentAssistantControllerTest {
     }
 
     @Test
+    void embeddingOutageStopsBeforeModelCreationAndQuotaReservation() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/analyze", exchange -> {
+            byte[] body = "{\"detail\":\"向量服务暂时不可用，请改用 BM25 检索。\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+            exchange.sendResponseHeaders(503, body.length);
+            try (var output = exchange.getResponseBody()) { output.write(body); }
+        });
+        server.start();
+        try {
+            var router = mock(AiSearchClientRouter.class);
+            var quota = mock(AiTrialQuotaService.class);
+            var addr = mock(ClientAddressResolver.class);
+            var controller = new DocumentAssistantController(true,
+                    "http://127.0.0.1:" + server.getAddress().getPort(), router, quota, addr);
+            for (String strategy : List.of("vector", "hybrid")) {
+                var error = assertThrows(BusinessException.class, () -> controller.analyze(
+                        new DocumentAssistantController.AnalyzeRequest("测试资料", "测试问题", "platform", strategy, null)));
+                assertTrue(error.getMessage().contains("BM25"));
+            }
+            verifyNoInteractions(router, quota, addr);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void ragModeReservesQuotaAndVerifiesCitationsOnGroundedAnswer() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/analyze", exchange -> {

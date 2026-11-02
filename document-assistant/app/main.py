@@ -1,7 +1,9 @@
 """Local-only document parsing, FAISS vector indexing, and multi-strategy retrieval service for BOOM."""
 
-from collections import Counter, OrderedDict
+from collections import Counter
+import hashlib
 import io
+import json
 import math
 import os
 from pathlib import Path
@@ -10,12 +12,13 @@ from typing import Literal
 
 import faiss
 from fastapi import FastAPI, File, HTTPException, UploadFile
-import httpx
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import numpy as np
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 import xxhash
+
+from app.vector_index import CachedIndex, EmbeddingConfig, EmbeddingUnavailable, VectorIndexStore
 
 app = FastAPI(title="BOOM Document Assistant", docs_url=None, redoc_url=None)
 
@@ -24,7 +27,6 @@ MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_PDF_PAGES = 30
 ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf"}
 LOCAL_EMBED_DIM = 512
-MAX_VECTOR_INDEX_CACHE = 64
 
 EN_STOP_WORDS = {
     "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
@@ -37,9 +39,7 @@ ZH_STOP_BIGRAMS = {
 }
 PAGE_MARKER_RE = re.compile(r"\[第\s*(\d+)\s*页\]")
 
-# Semantic concept clusters mapped to dedicated dense latent dimensions (0..len-1)
-# so synonymous expressions align in the FAISS inner-product vector space even when
-# exact lexical tokens differ.
+# Handwritten synonym features for the offline baseline; not learned embeddings.
 SEMANTIC_CLUSTERS: tuple[tuple[str, ...], ...] = (
     ("退出", "登出", "注销", "下线", "失活", "撤销", "logout", "revoked", "黑名单"),
     ("住宿", "酒店", "宾馆", "标间", "合住", "房费", "过夜", "双床"),
@@ -56,6 +56,12 @@ SEMANTIC_CLUSTERS: tuple[tuple[str, ...], ...] = (
     ("拒答", "幻觉", "编造", "伪造", "无证据", "引用", "正则", "溯源"),
     ("扫描件", "图片型", "ocr", "拍照", "影印", "页数", "体积", "extract", "上传"),
 )
+
+# Bump the revision when local feature weighting changes; cluster changes are hashed too.
+ENCODER_REVISION = hashlib.sha256(
+    json.dumps(["feature-hash-v2", SEMANTIC_CLUSTERS], ensure_ascii=False).encode()
+).hexdigest()
+vector_indexes = VectorIndexStore()
 
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=700, chunk_overlap=80, separators=["\n\n", "\n", "。", "！", "？", " ", ""]
@@ -81,7 +87,8 @@ class Citation(BaseModel):
 class AnalyzeResponse(BaseModel):
     mode: str = "extractive"
     strategy: str = "bm25"
-    vector_backend: str = "faiss-IndexFlatIP"
+    vector_backend: str | None = None
+    embedding_mode: str | None = None
     index_cached: bool = False
     chunk_count: int = 0
     summary: str
@@ -98,28 +105,9 @@ class ExtractResponse(BaseModel):
     text: str
 
 
-class _CachedFaissIndex:
-    """Holds a built FAISS IndexFlatIP, document IDF table, and chunk metadata."""
-
-    def __init__(
-        self,
-        index: faiss.IndexFlatIP,
-        idf_map: dict[str, float],
-        embedding_mode: str,
-        dim: int,
-    ) -> None:
-        self.index = index
-        self.idf_map = idf_map
-        self.embedding_mode = embedding_mode
-        self.dim = dim
-
-
-_VECTOR_INDEX_CACHE: OrderedDict[str, _CachedFaissIndex] = OrderedDict()
-
-
 def clear_vector_index_cache() -> None:
     """Clear in-memory FAISS index cache (useful for deterministic benchmarks/tests)."""
-    _VECTOR_INDEX_CACHE.clear()
+    vector_indexes.clear()
 
 
 def tokenize(value: str) -> list[str]:
@@ -197,105 +185,41 @@ def _encode_local_dense_vectors(
     return matrix
 
 
-def _try_remote_embeddings(texts: list[str]) -> np.ndarray | None:
-    """
-    Call an OpenAI-compatible /embeddings endpoint (e.g., DashScope text-embedding-v3)
-    when EMBEDDING_API_KEY is configured; returns L2-normalized float32 matrix or None.
-    """
-    api_key = os.getenv("EMBEDDING_API_KEY", "").strip()
-    if not api_key:
-        return None
-    base_url = os.getenv(
-        "EMBEDDING_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    ).rstrip("/")
-    model = os.getenv("EMBEDDING_MODEL", "text-embedding-v3").strip()
-    try:
-        with httpx.Client(timeout=4.0) as client:
-            resp = client.post(
-                f"{base_url}/embeddings",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={"model": model, "input": texts},
-            )
-            resp.raise_for_status()
-            data = resp.json().get("data", [])
-            if len(data) != len(texts):
-                return None
-            ordered = sorted(data, key=lambda item: item.get("index", 0))
-            matrix = np.array([item["embedding"] for item in ordered], dtype=np.float32)
-            faiss.normalize_L2(matrix)
-            return matrix
-    except Exception:
-        return None
-
-
-def build_or_get_faiss_index(chunks: list[str]) -> tuple[_CachedFaissIndex, bool]:
-    """Build or retrieve a cached FAISS IndexFlatIP vector index for the given document chunks."""
-    remote_key_flag = "remote" if os.getenv("EMBEDDING_API_KEY", "").strip() else "local"
-    digest_input = f"{remote_key_flag}||{len(chunks)}||" + "\x1f".join(chunks)
-    cache_key = xxhash.xxh64_hexdigest(digest_input.encode("utf-8"))
-
-    if cache_key in _VECTOR_INDEX_CACHE:
-        _VECTOR_INDEX_CACHE.move_to_end(cache_key)
-        return _VECTOR_INDEX_CACHE[cache_key], True
-
-    # Compute document-level subword IDF table for local dense encoding
+def build_or_get_faiss_index(chunks: list[str]) -> tuple[CachedIndex, bool]:
+    """Reuse only indexes built with the same document and embedding configuration."""
     n_docs = len(chunks)
     df_counter: Counter[str] = Counter()
-    for ch in chunks:
-        for feat in _extract_subword_features(ch).keys():
-            df_counter[feat] += 1
+    for chunk in chunks:
+        df_counter.update(_extract_subword_features(chunk).keys())
     idf_map = {
         feat: math.log(1.0 + (n_docs - df + 0.5) / (df + 0.5))
         for feat, df in df_counter.items()
     }
+    config = EmbeddingConfig.from_env(ENCODER_REVISION, LOCAL_EMBED_DIM)
+    if config.remote:
+        remote_min_score()
+    return vector_indexes.get_or_build(chunks, idf_map, config, _encode_local_dense_vectors)
 
-    vectors = _try_remote_embeddings(chunks)
-    if vectors is not None:
-        embedding_mode = "remote-openai"
-        dim = int(vectors.shape[1])
-    else:
-        vectors = _encode_local_dense_vectors(chunks, idf_map, dim=LOCAL_EMBED_DIM)
-        embedding_mode = "local-dense-512d"
-        dim = LOCAL_EMBED_DIM
 
-    index = faiss.IndexFlatIP(dim)
-    index.add(vectors)
-
-    # Optional disk persistence if VECTOR_CACHE_DIR is configured
-    cache_dir = os.getenv("VECTOR_CACHE_DIR", "").strip()
-    if cache_dir:
-        try:
-            cache_path = Path(cache_dir)
-            cache_path.mkdir(parents=True, exist_ok=True)
-            faiss.write_index(index, str(cache_path / f"{cache_key}.faiss"))
-        except Exception:
-            pass
-
-    entry = _CachedFaissIndex(index=index, idf_map=idf_map, embedding_mode=embedding_mode, dim=dim)
-    _VECTOR_INDEX_CACHE[cache_key] = entry
-    while len(_VECTOR_INDEX_CACHE) > MAX_VECTOR_INDEX_CACHE:
-        _VECTOR_INDEX_CACHE.popitem(last=False)
-
-    return entry, False
+def search_faiss_index_with_mode(chunks: list[str], question: str) -> tuple[list[float], bool, bool]:
+    entry, was_cached = build_or_get_faiss_index(chunks)
+    scores = vector_indexes.search(entry, question, _encode_local_dense_vectors)
+    return scores, was_cached, entry.config.remote
 
 
 def search_faiss_index(chunks: list[str], question: str) -> tuple[list[float], bool]:
-    """Query the FAISS IndexFlatIP vector index and return per-chunk cosine similarity scores."""
-    entry, was_cached = build_or_get_faiss_index(chunks)
-    if entry.embedding_mode == "remote-openai":
-        q_vec = _try_remote_embeddings([question])
-        if q_vec is None:
-            q_vec = _encode_local_dense_vectors([question], entry.idf_map, dim=entry.dim)
-    else:
-        q_vec = _encode_local_dense_vectors([question], entry.idf_map, dim=entry.dim)
+    scores, cached, _ = search_faiss_index_with_mode(chunks, question)
+    return scores, cached
 
-    n_docs = len(chunks)
-    distances, indices = entry.index.search(q_vec, n_docs)
-    scores = [0.0] * n_docs
-    for dist, idx in zip(distances[0], indices[0]):
-        if 0 <= int(idx) < n_docs:
-            scores[int(idx)] = max(0.0, float(dist))
-    return scores, was_cached
+
+def remote_min_score() -> float:
+    try:
+        value = float(os.getenv("EMBEDDING_MIN_SCORE", "0.35"))
+        if not math.isfinite(value) or not 0 <= value <= 1:
+            raise ValueError()
+        return value
+    except ValueError:
+        raise EmbeddingUnavailable("向量检索阈值配置无效，请检查 EMBEDDING_MIN_SCORE，或改用 BM25 检索。") from None
 
 
 def terms(value: str) -> set[str]:
@@ -420,26 +344,37 @@ def rank_chunks_with_meta(
         return scores
 
     was_cached = False
+    remote_vectors = False
+    vec_scores: list[float] = []
+    min_score = 0.08
     if strategy == "overlap":
         raw_scores = calc_overlap()
     elif strategy == "tfidf":
         raw_scores = calc_tfidf()
     elif strategy == "vector":
-        raw_scores, was_cached = search_faiss_index(chunks, question)
+        raw_scores, was_cached, remote_vectors = search_faiss_index_with_mode(chunks, question)
+        min_score = remote_min_score() if remote_vectors else 0.08
+        vec_scores = raw_scores.copy()
         # Filter out low-confidence random hash collisions in vector space
         for i in range(n_docs):
-            if raw_scores[i] < 0.08:
+            if raw_scores[i] < min_score:
                 raw_scores[i] = 0.0
     elif strategy == "hybrid":
         # True Dense + Sparse Hybrid Retrieval: FAISS IndexFlatIP + BM25 via Reciprocal Rank Fusion
         bm25_scores = calc_bm25()
-        vec_scores, was_cached = search_faiss_index(chunks, question)
+        vec_scores, was_cached, remote_vectors = search_faiss_index_with_mode(chunks, question)
+        min_score = remote_min_score() if remote_vectors else 0.08
         bm25_order = sorted(range(n_docs), key=lambda i: (-bm25_scores[i], i))
         vec_order = sorted(range(n_docs), key=lambda i: (-vec_scores[i], i))
         bm25_rank = {idx: rank for rank, idx in enumerate(bm25_order, 1)}
         vec_rank = {idx: rank for rank, idx in enumerate(vec_order, 1)}
         raw_scores = []
         for i in range(n_docs):
+            if remote_vectors:
+                lexical = 0.52 / (60.0 + bm25_rank[i]) if bm25_scores[i] > 0 else 0.0
+                semantic = 0.48 / (60.0 + vec_rank[i]) if vec_scores[i] >= min_score else 0.0
+                raw_scores.append(round((lexical + semantic) * 100.0, 4))
+                continue
             semantic_bridges = _count_semantic_cluster_matches(question, chunks[i])
             has_lexical = bm25_scores[i] > 0 and vec_scores[i] >= 0.08
             has_semantic = vec_scores[i] >= 0.10 and semantic_bridges >= 1
@@ -463,6 +398,9 @@ def rank_chunks_with_meta(
     # reject accidental single-bigram overlap on generic words unless backed by synonym bridge.
     if len(query_set) >= 4 and n_docs >= 3:
         for i, counter in enumerate(chunk_counters):
+            # Learned embeddings must not depend on our offline synonym vocabulary.
+            if remote_vectors and vec_scores[i] >= min_score:
+                continue
             matched_terms = query_set & set(counter.keys())
             semantic_hits = _count_semantic_cluster_matches(question, chunks[i])
             if len(matched_terms) <= 1 and semantic_hits == 0:
@@ -518,6 +456,9 @@ def analyze(
         )
 
     ranked, was_cached = rank_chunks_with_meta(chunks, question, strategy=strategy)
+    vector_meta = ({"vector_backend": "faiss-IndexFlatIP",
+                    "embedding_mode": EmbeddingConfig.from_env(ENCODER_REVISION).mode}
+                   if strategy in ("vector", "hybrid") else {})
     matches = [
         Citation(
             chunk=index,
@@ -531,6 +472,7 @@ def analyze(
     if not matches:
         return AnalyzeResponse(
             strategy=strategy,
+            **vector_meta,
             index_cached=was_cached,
             chunk_count=len(chunks),
             summary=summary,
@@ -539,6 +481,7 @@ def analyze(
         )
     return AnalyzeResponse(
         strategy=strategy,
+        **vector_meta,
         index_cached=was_cached,
         chunk_count=len(chunks),
         summary=summary,
@@ -619,7 +562,8 @@ def extract_document_bytes(filename: str, raw_bytes: bytes) -> ExtractResponse:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "vector_backend": "faiss-IndexFlatIP"}
+    return {"status": "ok", "vector_backend": "faiss-IndexFlatIP",
+            "embedding_mode": EmbeddingConfig.from_env(ENCODER_REVISION).mode}
 
 
 @app.post("/v1/analyze", response_model=AnalyzeResponse)
@@ -631,6 +575,8 @@ def analyze_route(payload: AnalyzeRequest) -> AnalyzeResponse:
             strategy=payload.strategy,
             top_k=payload.top_k,
         )
+    except EmbeddingUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
